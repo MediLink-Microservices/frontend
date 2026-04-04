@@ -1,3 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Global Styles */
+* {
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Sri Lankan Rupee Format */
+.rupee-format::before {
+  content: "Rs. ";
+  font-weight: 600;
+  color: #059669;
+}
+
+.fee-rupee {
+  color: #059669;
+  font-weight: 600;
+}
+
+.fee-rupee::before {
+  content: "Rs. ";
+}
