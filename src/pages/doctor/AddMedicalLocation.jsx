@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import AllMedicalLocations from '../../components/AllMedicalLocations'
 
-const MedicalLocation = () => {
+const AddMedicalLocation = () => {
     const [showForm, setShowForm] = useState(true)
     const [refreshKey, setRefreshKey] = useState(0)
     const [formData, setFormData] = useState({
@@ -251,4 +251,4 @@ const MedicalLocation = () => {
     )
 }
 
-export default MedicalLocation
+export default AddMedicalLocation
