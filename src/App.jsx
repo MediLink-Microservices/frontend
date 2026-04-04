@@ -6,6 +6,7 @@ import AddMedicalLocation from './pages/doctor/AddMedicalLocation'
 import AddDoctor from './pages/doctor/AddDoctor'
 import AllRegisteredDoctors from './components/AllRegisteredDoctors'
 import PrescriptionWriting from './pages/doctor/PrescriptionWriting'
+import AvailabilitySchedulePage from './pages/doctor/AvailabilitySchedulePage'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <Route path="doctor/add-doctor" element={<AddDoctor />} />
           <Route path="doctor/view-doctors" element={<AllRegisteredDoctors />} />
           <Route path="doctor/prescription-writing" element={<PrescriptionWriting />} />
+          <Route path="doctor/availability-schedule" element={<AvailabilitySchedulePage />} />
         </Route>
       </Routes>
     </Router>
