@@ -290,7 +290,7 @@ const AddDoctor = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label htmlFor="fee" className="block text-sm font-medium text-gray-700 mb-2">Consultation Fee (රු) *</label>
+                                    <label htmlFor="fee" className="block text-sm font-medium text-gray-700 mb-2">Consultation Fee (Rs) *</label>
                                     <input
                                         type="number"
                                         id="fee"
