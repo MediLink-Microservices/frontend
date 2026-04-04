@@ -2,6 +2,7 @@ import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import LoginPage from './pages/auth/LoginPage'
+import MedicalLocation from './pages/doctor/MedicalLocation'
 
 function App() {
   return (
@@ -9,6 +10,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<LoginPage />} />
+          <Route path="doctor/medical-location" element={<MedicalLocation />} />
         </Route>
       </Routes>
     </Router>
