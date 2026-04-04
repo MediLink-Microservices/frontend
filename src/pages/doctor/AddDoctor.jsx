@@ -2,20 +2,16 @@ import React, { useState, useEffect } from 'react'
 import AllRegisteredDoctors from '../../components/AllRegisteredDoctors'
 
 const AddDoctor = () => {
-    const [showForm, setShowForm] = useState(true)
-    const [refreshKey, setRefreshKey] = useState(0)
     const [formData, setFormData] = useState({
-        firstName: '',
-        lastName: '',
+        name: '',
         email: '',
         phone: '',
         licenseNumber: '',
-        yearsOfExperience: '',
+        yearsOfExperience: 0,
         specialty: '',
-        status: 'PENDING',
         hospitalIds: [],
-        fee: '',
-        availableForTelemedicine: true
+        fee: 0,
+        availableForTelemedicine: false
     })
 
     const [loading, setLoading] = useState(false)
@@ -86,6 +82,7 @@ const AddDoctor = () => {
     }
 
     const handleSubmit = async (e) => {
+        console.log('Form submitted with data:', formData);
         e.preventDefault()
         setLoading(true)
         setMessage('')
@@ -102,17 +99,15 @@ const AddDoctor = () => {
             if (response.ok) {
                 setMessage('Doctor added successfully!')
                 setFormData({
-                    firstName: '',
-                    lastName: '',
+                    name: '',
                     email: '',
                     phone: '',
                     licenseNumber: '',
-                    yearsOfExperience: '',
+                    yearsOfExperience: 0,
                     specialty: '',
-                    status: 'PENDING',
                     hospitalIds: [],
-                    fee: '',
-                    availableForTelemedicine: true
+                    fee: 0,
+                    availableForTelemedicine: false
                 })
             } else {
                 setMessage('Error adding doctor. Please try again.')
@@ -191,38 +186,22 @@ const AddDoctor = () => {
                         {/* Personal Information */}
                         <div className="bg-gray-50 rounded-lg p-6">
                             <h2 className="text-xl font-semibold text-gray-800 mb-4">Personal Information</h2>
-                            
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
+                                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
                                     <input
                                         type="text"
-                                        id="firstName"
-                                        name="firstName"
-                                        value={formData.firstName}
+                                        id="name"
+                                        name="name"
+                                        value={formData.name}
                                         onChange={handleChange}
                                         required
-                                        placeholder="Enter first name"
+                                        placeholder="Enter doctor's full name"
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
                                 </div>
 
-                                <div>
-                                    <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
-                                    <input
-                                        type="text"
-                                        id="lastName"
-                                        name="lastName"
-                                        value={formData.lastName}
-                                        onChange={handleChange}
-                                        required
-                                        placeholder="Enter last name"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
                                     <input
@@ -236,7 +215,9 @@ const AddDoctor = () => {
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
                                 </div>
+                            </div>
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">Phone *</label>
                                     <input
@@ -250,14 +231,7 @@ const AddDoctor = () => {
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
                                 </div>
-                            </div>
-                        </div>
 
-                        {/* Professional Information */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-xl font-semibold text-gray-800 mb-4">Professional Information</h2>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label htmlFor="licenseNumber" className="block text-sm font-medium text-gray-700 mb-2">License Number *</label>
                                     <input
@@ -271,7 +245,14 @@ const AddDoctor = () => {
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
                                 </div>
+                            </div>
+                        </div>
 
+                        {/* Professional Information */}
+                        <div className="bg-gray-50 rounded-lg p-6">
+                            <h2 className="text-xl font-semibold text-gray-800 mb-4">Professional Information</h2>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label htmlFor="yearsOfExperience" className="block text-sm font-medium text-gray-700 mb-2">Years of Experience *</label>
                                     <input
@@ -279,16 +260,14 @@ const AddDoctor = () => {
                                         id="yearsOfExperience"
                                         name="yearsOfExperience"
                                         value={formData.yearsOfExperience}
-                                        onChange={handleChange}
+                                        onChange={(e) => setFormData(prev => ({...prev, yearsOfExperience: parseInt(e.target.value) || 0}))}
                                         required
                                         placeholder="Enter years of experience"
                                         min="0"
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
                                 </div>
-                            </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label htmlFor="specialty" className="block text-sm font-medium text-gray-700 mb-2">Specialty *</label>
                                     <select
@@ -307,50 +286,23 @@ const AddDoctor = () => {
                                         ))}
                                     </select>
                                 </div>
+                            </div>
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label htmlFor="fee" className="block text-sm font-medium text-gray-700 mb-2">Consultation Fee ($) *</label>
+                                    <label htmlFor="fee" className="block text-sm font-medium text-gray-700 mb-2">Consultation Fee (රු) *</label>
                                     <input
                                         type="number"
                                         id="fee"
                                         name="fee"
                                         value={formData.fee}
-                                        onChange={handleChange}
+                                        onChange={(e) => setFormData(prev => ({...prev, fee: parseFloat(e.target.value) || 0}))}
                                         required
                                         placeholder="Enter consultation fee"
                                         min="0"
                                         step="0.01"
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Hospital Association */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-xl font-semibold text-gray-800 mb-4">Hospital Association</h2>
-                            {renderHospitalSelection()}
-                        </div>
-
-                        {/* Status */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-xl font-semibold text-gray-800 mb-4">Status</h2>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">Application Status *</label>
-                                    <select
-                                        id="status"
-                                        name="status"
-                                        value={formData.status}
-                                        onChange={handleChange}
-                                        required
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    >
-                                        <option value="PENDING">Pending</option>
-                                        <option value="APPROVED">Approved</option>
-                                        <option value="REJECTED">Rejected</option>
-                                    </select>
                                 </div>
 
                                 <div>
@@ -368,6 +320,12 @@ const AddDoctor = () => {
                             </div>
                         </div>
 
+                        {/* Hospital Association */}
+                        <div className="bg-gray-50 rounded-lg p-6">
+                            <h2 className="text-xl font-semibold text-gray-800 mb-4">Hospital Association</h2>
+                            {renderHospitalSelection()}
+                        </div>
+
                         <div className="flex gap-4 mt-8">
                             <button
                                 type="submit"
@@ -379,17 +337,15 @@ const AddDoctor = () => {
                             <button
                                 type="button"
                                 onClick={() => setFormData({
-                                    firstName: '',
-                                    lastName: '',
+                                    name: '',
                                     email: '',
                                     phone: '',
                                     licenseNumber: '',
-                                    yearsOfExperience: '',
+                                    yearsOfExperience: 0,
                                     specialty: '',
-                                    status: 'PENDING',
                                     hospitalIds: [],
-                                    fee: '',
-                                    availableForTelemedicine: true
+                                    fee: 0,
+                                    availableForTelemedicine: false
                                 })}
                                 className="flex-1 bg-gray-600 text-white font-medium py-3 px-6 rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors duration-200"
                             >
@@ -399,6 +355,8 @@ const AddDoctor = () => {
                     </form>
                 </div>
             </div>
+            <AllRegisteredDoctors />
+
         </div>
     )
 }

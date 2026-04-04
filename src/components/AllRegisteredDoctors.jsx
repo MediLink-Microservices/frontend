@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 
 const AllRegisteredDoctors = () => {
   const [doctors, setDoctors] = useState([])
+  const [hospitals, setHospitals] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState(null)
@@ -9,13 +10,26 @@ const AllRegisteredDoctors = () => {
 
   useEffect(() => {
     fetchDoctors()
+    fetchHospitals()
   }, [])
+
+  const fetchHospitals = async () => {
+    try {
+      const response = await fetch('/api/hospitals')
+      if (response.ok) {
+        const data = await response.json()
+        setHospitals(data)
+      }
+    } catch (error) {
+      console.log('Error fetching hospitals:', error)
+    }
+  }
 
   const fetchDoctors = async () => {
     try {
       console.log('Fetching from: /api/doctors')
       const response = await fetch('/api/doctors')
-      console.log('Response status:', response.status)
+      console.log('dr response status:', response)
       console.log('Response headers:', response.headers)
       
       if (!response.ok) {
@@ -72,6 +86,14 @@ const AllRegisteredDoctors = () => {
     setEditFormData({})
   }
 
+  const getHospitalNames = (hospitalIds) => {
+    if (!hospitalIds || hospitalIds.length === 0) return []
+    return hospitalIds.map(id => {
+      const hospital = hospitals.find(h => h.hospitalId === id)
+      return hospital ? hospital.name : 'Unknown Hospital'
+    })
+  }
+
   const handleEditChange = (e) => {
     const { name, value, type, checked } = e.target
     setEditFormData(prev => ({
@@ -100,27 +122,6 @@ const AllRegisteredDoctors = () => {
       }
     }
   }
-
-  const specializations = [
-    { value: 'GENERAL_PRACTICE', label: 'General Practice' },
-    { value: 'CARDIOLOGY', label: 'Cardiology' },
-    { value: 'NEUROLOGY', label: 'Neurology' },
-    { value: 'PEDIATRICS', label: 'Pediatrics' },
-    { value: 'ORTHOPEDICS', label: 'Orthopedics' },
-    { value: 'DERMATOLOGY', label: 'Dermatology' },
-    { value: 'PSYCHIATRY', label: 'Psychiatry' },
-    { value: 'GYNECOLOGY', label: 'Gynecology' },
-    { value: 'OPHTHALMOLOGY', label: 'Ophthalmology' }
-  ]
-
-  const departments = [
-    { value: 'EMERGENCY', label: 'Emergency' },
-    { value: 'OUTPATIENT', label: 'Outpatient' },
-    { value: 'INPATIENT', label: 'Inpatient' },
-    { value: 'SURGERY', label: 'Surgery' },
-    { value: 'ICU', label: 'Intensive Care' },
-    { value: 'LABORATORY', label: 'Laboratory' }
-  ]
 
   const getSpecializationLabel = (spec) => {
     const specMap = {
@@ -173,11 +174,13 @@ const AllRegisteredDoctors = () => {
                 <th>Doctor Name</th>
                 <th>Email</th>
                 <th>Phone</th>
-                <th>Specialization</th>
-                <th>Department</th>
+                <th>License</th>
+                <th>Specialty</th>
                 <th>Experience</th>
-                <th>Consultation Fee</th>
-                <th>Available</th>
+                <th>Fee</th>
+                <th>Telemedicine</th>
+                <th>Status</th>
+                <th>Hospitals</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -186,26 +189,18 @@ const AllRegisteredDoctors = () => {
                 <tr key={doctor.doctorId}>
                   <td>
                     {editingId === doctor.doctorId ? (
-                      <div className="name-edit">
-                        <input
-                          type="text"
-                          name="firstName"
-                          value={editFormData.firstName || ''}
-                          onChange={handleEditChange}
-                          className="edit-input small"
-                          placeholder="First Name"
-                        />
-                        <input
-                          type="text"
-                          name="lastName"
-                          value={editFormData.lastName || ''}
-                          onChange={handleEditChange}
-                          className="edit-input small"
-                          placeholder="Last Name"
-                        />
-                      </div>
+                      <input
+                        type="text"
+                        name="name"
+                        value={editFormData.name || ''}
+                        onChange={handleEditChange}
+                        className="edit-input"
+                        placeholder="Doctor Name"
+                      />
                     ) : (
-                      `${doctor.firstName} ${doctor.lastName}`
+                      <div className="doctor-name">
+                        <strong>{doctor.name}</strong>
+                      </div>
                     )}
                   </td>
                   <td>
@@ -236,41 +231,33 @@ const AllRegisteredDoctors = () => {
                   </td>
                   <td>
                     {editingId === doctor.doctorId ? (
-                      <select
-                        name="specialization"
-                        value={editFormData.specialization || ''}
+                      <input
+                        type="text"
+                        name="licenseNumber"
+                        value={editFormData.licenseNumber || ''}
                         onChange={handleEditChange}
-                        className="edit-select"
-                      >
-                        {specializations.map(spec => (
-                          <option key={spec.value} value={spec.value}>
-                            {spec.label}
-                          </option>
-                        ))}
-                      </select>
+                        className="edit-input"
+                        placeholder="License Number"
+                      />
                     ) : (
-                      <span className="spec-badge">
-                        {getSpecializationLabel(doctor.specialization)}
+                      <span className="license-badge">
+                        {doctor.licenseNumber}
                       </span>
                     )}
                   </td>
                   <td>
                     {editingId === doctor.doctorId ? (
-                      <select
-                        name="department"
-                        value={editFormData.department || ''}
+                      <input
+                        type="text"
+                        name="specialty"
+                        value={editFormData.specialty || ''}
                         onChange={handleEditChange}
-                        className="edit-select"
-                      >
-                        {departments.map(dept => (
-                          <option key={dept.value} value={dept.value}>
-                            {dept.label}
-                          </option>
-                        ))}
-                      </select>
+                        className="edit-input"
+                        placeholder="Specialty"
+                      />
                     ) : (
-                      <span className="dept-badge">
-                        {getDepartmentLabel(doctor.department)}
+                      <span className="spec-badge">
+                        {getSpecializationLabel(doctor.specialty)}
                       </span>
                     )}
                   </td>
@@ -278,74 +265,119 @@ const AllRegisteredDoctors = () => {
                     {editingId === doctor.doctorId ? (
                       <input
                         type="number"
-                        name="experience"
-                        value={editFormData.experience || ''}
+                        name="yearsOfExperience"
+                        value={editFormData.yearsOfExperience || 0}
                         onChange={handleEditChange}
-                        className="edit-input small"
+                        className="edit-input"
+                        placeholder="Experience"
                         min="0"
                       />
                     ) : (
-                      `${doctor.experience} years`
+                      <span className="experience-badge">
+                        {doctor.yearsOfExperience} years
+                      </span>
                     )}
                   </td>
                   <td>
                     {editingId === doctor.doctorId ? (
                       <input
                         type="number"
-                        name="consultationFee"
-                        value={editFormData.consultationFee || ''}
+                        name="fee"
+                        value={editFormData.fee || 0}
                         onChange={handleEditChange}
-                        className="edit-input small"
+                        className="edit-input"
+                        placeholder="Fee"
                         min="0"
                         step="0.01"
                       />
                     ) : (
-                      `$${doctor.consultationFee}`
-                    )}
-                  </td>
-                  <td>
-                    {editingId === doctor.doctorId ? (
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          name="available"
-                          checked={editFormData.available || false}
-                          onChange={handleEditChange}
-                        />
-                        <span className="checkmark"></span>
-                        Available
-                      </label>
-                    ) : (
-                      <span className={`status-badge ${doctor.available ? 'available' : 'unavailable'}`}>
-                        {doctor.available ? 'Available' : 'Unavailable'}
+                      <span className="fee-badge fee-rupee">
+                        {doctor.fee}
                       </span>
                     )}
                   </td>
                   <td>
                     {editingId === doctor.doctorId ? (
-                      <div className="edit-actions">
-                        <button 
-                          className="btn-save"
-                          onClick={() => handleSave(doctor.doctorId)}
-                        >
-                          Save
-                        </button>
-                        <button 
-                          className="btn-cancel"
-                          onClick={handleCancel}
-                        >
-                          Cancel
-                        </button>
-                      </div>
+                      <input
+                        type="checkbox"
+                        name="availableForTelemedicine"
+                        checked={editFormData.availableForTelemedicine || false}
+                        onChange={handleEditChange}
+                        className="edit-checkbox"
+                      />
                     ) : (
-                      <button className="btn-edit" onClick={() => handleEdit(doctor)}>Edit</button>
+                      <span className="telemedicine-badge">
+                        {doctor.availableForTelemedicine ? 'Yes' : 'No'}
+                      </span>
                     )}
-                    <button 
-                      className="btn-delete"
-                      onClick={() => handleDelete(doctor.doctorId)}
-                    >
-                      Delete
-                    </button>
+                  </td>
+                  <td>
+                    {editingId === doctor.doctorId ? (
+                      <select
+                        name="status"
+                        value={editFormData.status || 'PENDING'}
+                        onChange={handleEditChange}
+                        className="edit-select"
+                      >
+                        <option value="PENDING">Pending</option>
+                        <option value="APPROVED">Approved</option>
+                        <option value="REJECTED">Rejected</option>
+                      </select>
+                    ) : (
+                      <span className={`status-badge ${doctor.status?.toLowerCase()}`}>
+                        {doctor.status || 'PENDING'}
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <div className="hospitals-cell">
+                      {doctor.hospitalIds && doctor.hospitalIds.length > 0 ? (
+                        <div className="hospital-list">
+                          {getHospitalNames(doctor.hospitalIds).map((hospitalName, index) => (
+                            <span key={index} className="hospital-tag">
+                              {hospitalName}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="no-hospitals">No hospitals</span>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="edit-actions">
+                      {editingId === doctor.doctorId ? (
+                        <>
+                          <button 
+                            className="btn-save"
+                            onClick={() => handleSave(doctor.doctorId)}
+                          >
+                            Save
+                          </button>
+                          <button 
+                            className="btn-cancel"
+                            onClick={handleCancel}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button 
+                            className="btn-edit"
+                            onClick={() => handleEdit(doctor)}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            className="btn-delete"
+                            onClick={() => handleDelete(doctor.doctorId)}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -534,7 +566,34 @@ const AllRegisteredDoctors = () => {
         }
 
         .btn-delete:hover {
-          background-color: #c82333;
+          background-color: #c0392b;
+        }
+
+        .hospitals-cell {
+          max-width: 200px;
+        }
+
+        .hospital-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.25rem;
+        }
+
+        .hospital-tag {
+          display: inline-block;
+          background-color: #e3f2fd;
+          color: #1976d2;
+          padding: 0.125rem 0.375rem;
+          border-radius: 0.25rem;
+          font-size: 0.75rem;
+          font-weight: 500;
+          border: 1px solid #bbdefb;
+        }
+
+        .no-hospitals {
+          color: #999;
+          font-style: italic;
+          font-size: 0.875rem;
         }
 
         @media (max-width: 768px) {
