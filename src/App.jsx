@@ -2,11 +2,23 @@ import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import LoginPage from './pages/auth/LoginPage'
+import RegisterPage from './pages/auth/RegisterPage'
+import PatientRegistration from './pages/patient/PatientRegistration'
+import DoctorRegistration from './pages/doctor/DoctorRegistration'
+import PatientDashboard from './pages/patient/PatientDashboard'
+import DoctorDashboard from './pages/doctor/DoctorDashboard'
 import AddMedicalLocation from './pages/doctor/AddMedicalLocation'
 import AddDoctor from './pages/doctor/AddDoctor'
+import AddHospital from './pages/doctor/AddHospital'
+import AddPrescription from './pages/doctor/AddPrescription'
+import AddSchedule from './pages/doctor/AddSchedule'
+import ViewHospitals from './pages/doctor/ViewHospitals'
+import ViewDoctors from './pages/doctor/ViewDoctors'
+import ViewSchedules from './pages/doctor/ViewSchedules'
 import AllRegisteredDoctors from './components/AllRegisteredDoctors'
 import PrescriptionWriting from './pages/doctor/PrescriptionWriting'
 import AvailabilitySchedulePage from './pages/doctor/AvailabilitySchedulePage'
+import BookAppointmentPage from './pages/patient/BookAppointmentPage'
 
 function App() {
   return (
@@ -14,11 +26,22 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<LoginPage />} />
+          <Route path="register" element={<RegisterPage />} />
+          <Route path="register/patient" element={<PatientRegistration />} />
+          <Route path="register/doctor" element={<DoctorRegistration />} />
+          <Route path="patient/dashboard" element={<PatientDashboard />} />
+          <Route path="doctor/dashboard" element={<DoctorDashboard />} />
           <Route path="doctor/medical-location" element={<AddMedicalLocation />} />
           <Route path="doctor/add-doctor" element={<AddDoctor />} />
-          <Route path="doctor/view-doctors" element={<AllRegisteredDoctors />} />
+          <Route path="doctor/add-hospital" element={<AddHospital />} />
+          <Route path="doctor/view-hospitals" element={<ViewHospitals />} />
+          <Route path="doctor/add-prescription" element={<AddPrescription />} />
+          <Route path="doctor/add-schedule" element={<AddSchedule />} />
+          <Route path="doctor/view-schedules" element={<ViewSchedules />} />
+          <Route path="doctor/view-doctors" element={<ViewDoctors />} />
           <Route path="doctor/prescription-writing" element={<PrescriptionWriting />} />
           <Route path="doctor/availability-schedule" element={<AvailabilitySchedulePage />} />
+          <Route path="patient/book-appointment" element={<BookAppointmentPage />} />
         </Route>
       </Routes>
     </Router>
