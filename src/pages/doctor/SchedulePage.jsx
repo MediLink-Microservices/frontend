@@ -49,7 +49,7 @@ const SchedulePage = () => {
   });
 
   const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const consultationTypes = ['IN_PERSON', 'TELEmedicine', 'BOTH'];
+  const consultationTypes = ['IN_PERSON', 'TELEMEDICINE', 'BOTH'];
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
