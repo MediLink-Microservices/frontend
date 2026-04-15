@@ -52,10 +52,10 @@ const DoctorDashboard = () => {
         telemedicineResponse,
         patientsResponse
       ] = await Promise.all([
-        fetch(`http://localhost:8084/api/appointments/doctor/${DOCTOR_ID}`),
-        fetch(`http://localhost:8083/api/prescriptions/doctor/${DOCTOR_ID}`),
-        fetch(`http://localhost:8088/api/telemedicine/doctor/${DOCTOR_ID}`),
-        fetch(`http://localhost:8086/api/patients`) // This might need adjustment for doctor-specific patients
+        fetch(`http://localhost:8084/api/appointments/doctor/69dda11899183b33e3e63c9f`),
+        fetch(`http://localhost:8083/api/prescriptions/doctor/69dda11899183b33e3e63c9f`),
+        fetch(`http://localhost:8088/api/telemedicine/doctor/69dda11899183b33e3e63c9f`),
+        fetch(`http://localhost:8086/api/patient`) // This might need adjustment for doctor-specific patients
       ]);
 
       const today = new Date().toISOString().split('T')[0];
@@ -163,19 +163,6 @@ const DoctorDashboard = () => {
 
           {/* Statistics Overview */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
-            <div className="bg-white rounded-xl p-6 shadow-medical hover:shadow-medical-lg transition-all duration-300 border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
-                  <Users className="w-6 h-6 text-medilink-primary" />
-                </div>
-                <span className="flex items-center text-xs text-green-600 font-medium">
-                  <ArrowUp className="w-3 h-3 mr-1" />
-                  12%
-                </span>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900">{stats.totalPatients.toLocaleString()}</h3>
-              <p className="text-sm text-gray-600 mt-1">Total Patients</p>
-            </div>
 
             <div className="bg-white rounded-xl p-6 shadow-medical hover:shadow-medical-lg transition-all duration-300 border border-gray-100">
               <div className="flex items-center justify-between mb-4">
@@ -202,7 +189,7 @@ const DoctorDashboard = () => {
                 </span>
               </div>
               <h3 className="text-2xl font-bold text-gray-900">{stats.pendingPrescriptions}</h3>
-              <p className="text-sm text-gray-600 mt-1">Pending Prescriptions</p>
+              <p className="text-sm text-gray-600 mt-1">Prescriptions</p>
             </div>
 
             <div className="bg-white rounded-xl p-6 shadow-medical hover:shadow-medical-lg transition-all duration-300 border border-gray-100">
@@ -217,34 +204,6 @@ const DoctorDashboard = () => {
               </div>
               <h3 className="text-2xl font-bold text-gray-900">{stats.telemedicineSessions}</h3>
               <p className="text-sm text-gray-600 mt-1">Telemedicine Sessions</p>
-            </div>
-
-            <div className="bg-white rounded-xl p-6 shadow-medical hover:shadow-medical-lg transition-all duration-300 border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="w-6 h-6 text-medilink-info" />
-                </div>
-                <span className="flex items-center text-xs text-green-600 font-medium">
-                  <ArrowUp className="w-3 h-3 mr-1" />
-                  18%
-                </span>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900">Rs {stats.revenue.toLocaleString()}.00</h3>
-              <p className="text-sm text-gray-600 mt-1">Monthly Revenue</p>
-            </div>
-
-            <div className="bg-white rounded-xl p-6 shadow-medical hover:shadow-medical-lg transition-all duration-300 border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-pink-50 rounded-lg flex items-center justify-center">
-                  <Heart className="w-6 h-6 text-medical-pink" />
-                </div>
-                <span className="flex items-center text-xs text-green-600 font-medium">
-                  <ArrowUp className="w-3 h-3 mr-1" />
-                  5%
-                </span>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900">{stats.satisfaction}</h3>
-              <p className="text-sm text-gray-600 mt-1">Patient Satisfaction</p>
             </div>
           </div>
 
@@ -330,18 +289,6 @@ const DoctorDashboard = () => {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 group-hover:text-medical-purple transition-colors">Add Doctor</h3>
                   <p className="text-sm text-gray-600">Register new doctor</p>
-                </div>
-              </div>
-            </Link>
-
-            <Link to="/doctor/settings" className="group bg-white rounded-xl p-6 shadow-medical hover:shadow-medical-lg transition-all duration-300 border border-gray-100 hover:border-gray-600">
-              <div className="flex items-center space-x-4">
-                <div className="w-14 h-14 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Stethoscope className="w-7 h-7 text-gray-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-gray-600 transition-colors">Settings</h3>
-                  <p className="text-sm text-gray-600">Profile & preferences</p>
                 </div>
               </div>
             </Link>
