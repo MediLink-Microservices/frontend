@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import AllRegisteredDoctors from '../../components/AllRegisteredDoctors'
-
+import AllRegisteredDoctors from '../../components/ui/AllRegisteredDoctors'
 const AddDoctor = () => {
     const [formData, setFormData] = useState({
         name: '',
