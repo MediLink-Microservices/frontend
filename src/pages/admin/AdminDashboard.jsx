@@ -7,9 +7,10 @@ import OverviewPage from "./OverviewPage";
 import AdminAppointmentsPage from "./AdminAppointmentsPage";
 import DoctorManagementPage from "./DoctorManagementPage";
 import UserManagementPage from "./UserManagementPage";
+import { getStoredUser } from "../../utils/authStorage";
 
 export default function AdminDashboard() {
-  const user = (() => { try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; } })();
+  const user = getStoredUser();
 
   const [activePage, setActivePage] = useState("overview");
   const [collapsed, setCollapsed] = useState(false);

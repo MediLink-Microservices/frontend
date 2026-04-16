@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Profile from "../../pages/auth/Profile";
+import { clearAuthSession } from "../../utils/authStorage";
 
 const PAGE_TITLES = {
   overview:  { title: "Overview",           subtitle: "Welcome back to your dashboard" },
@@ -17,7 +18,7 @@ export default function AdminNavbar({ activePage, user }) {
   const [showMenu, setShowMenu] = useState(false);
 
   const handleLogout = () => {
-    localStorage.clear();
+    clearAuthSession();
     navigate("/login");
   };
 

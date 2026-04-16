@@ -3,17 +3,12 @@ import {
   ArrowRight,
   BadgeCheck,
   CalendarDays,
-  ChevronDown,
   CheckCircle2,
   CreditCard,
+  ExternalLink,
   HeartPulse,
   Hospital,
-  IdCard,
   LoaderCircle,
-  LogOut,
-  Mail,
-  MapPin,
-  Phone,
   Search,
   ShieldCheck,
   Stethoscope,
@@ -21,15 +16,13 @@ import {
   Wallet,
   XCircle
 } from 'lucide-react';
+import PatientPortalTabs from '../../components/patient/PatientPortalTabs';
 import { patientAPI } from '../../services/api';
+import { getStoredUser } from '../../utils/authStorage';
 
 const resolveStoredUser = () => {
-  try {
-    const rawUser = localStorage.getItem('user');
-    return rawUser ? JSON.parse(rawUser) : null;
-  } catch {
-    return null;
-  }
+  const user = getStoredUser();
+  return Object.keys(user).length ? user : null;
 };
 
 const buildPatientName = (patient, fallbackName = '') => {
@@ -41,17 +34,17 @@ const buildPatientName = (patient, fallbackName = '') => {
   return fullName || patient.name || fallbackName;
 };
 
-const getPatientInitials = (name = '') =>
-  name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() || '')
-    .join('') || 'PT';
+const normalizeConsultationType = (type = '') => {
+  if (type === 'ONLINE') {
+    return 'TELEMEDICINE';
+  }
+  return type;
+};
+
+const isTelemedicineType = (type = '') => normalizeConsultationType(type) === 'TELEMEDICINE';
 
 const BookAppointmentPage = () => {
   const storedUser = resolveStoredUser();
-  const [showPatientProfile, setShowPatientProfile] = useState(false);
   const [step, setStep] = useState(1); // 1: select specialty, 2: select doctor, 3: select schedule, 4: confirm
   const [patientDetails, setPatientDetails] = useState({
     patientId: '',
@@ -86,6 +79,8 @@ const BookAppointmentPage = () => {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(null);
   const [bookingError, setBookingError] = useState('');
+  const [telemedicineSession, setTelemedicineSession] = useState(null);
+  const [telemedicineError, setTelemedicineError] = useState('');
   const [paymentForm, setPaymentForm] = useState({
     appointmentId: '',
     patientId: '',
@@ -165,6 +160,50 @@ const BookAppointmentPage = () => {
 
     fetchPatientProfile();
   }, [storedUser?.id, storedUser?.name, storedUser?.userId]);
+
+  useEffect(() => {
+    const hydrateTelemedicineSession = async () => {
+      if (
+        !bookingSuccess ||
+        !patientDetails.patientId ||
+        !isTelemedicineType(bookingSuccess.consultationType || appointmentData.consultationType) ||
+        telemedicineSession?.jitsiUrl
+      ) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`http://localhost:8088/api/telemedicine/patient/${patientDetails.patientId.trim()}`);
+        if (!response.ok) {
+          return;
+        }
+
+        const sessions = await response.json();
+        const matchingSession = sessions.find((session) => (
+          session.doctorId === bookingSuccess.doctorId
+          && session.patientId === bookingSuccess.patientId
+          && session.appointmentDateTime === bookingSuccess.appointmentDateTime
+        )) || sessions.find((session) => (
+          session.doctorId === bookingSuccess.doctorId
+          && session.patientId === bookingSuccess.patientId
+        ));
+
+        if (matchingSession) {
+          setTelemedicineSession(matchingSession);
+          setTelemedicineError('');
+        }
+      } catch (error) {
+        console.error('Error hydrating telemedicine session:', error);
+      }
+    };
+
+    hydrateTelemedicineSession();
+  }, [
+    appointmentData.consultationType,
+    bookingSuccess,
+    patientDetails.patientId,
+    telemedicineSession?.jitsiUrl,
+  ]);
 
   const fetchHospitals = async () => {
     try {
@@ -270,6 +309,62 @@ const BookAppointmentPage = () => {
     return maxNumber + 1;
   };
 
+  const getActiveAppointmentsForDate = (scheduleDate) => {
+    return doctorAppointments.filter(appointment => {
+      const appointmentDate = appointment.appointmentDateTime ?
+        appointment.appointmentDateTime.split('T')[0] : '';
+      return appointmentDate === scheduleDate && appointment.status !== 'CANCELLED';
+    });
+  };
+
+  const timeToMinutes = (time = '') => {
+    const [hours = '0', minutes = '0'] = time.split(':');
+    return (Number(hours) * 60) + Number(minutes);
+  };
+
+  const minutesToTime = (totalMinutes) => {
+    const safeMinutes = Math.max(0, totalMinutes);
+    const hours = Math.floor(safeMinutes / 60) % 24;
+    const minutes = safeMinutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  };
+
+  const getNextAvailableSlotDateTime = (schedule, scheduleDate) => {
+    if (!schedule || !scheduleDate) return null;
+
+    const activeAppointments = getActiveAppointmentsForDate(scheduleDate);
+    const patientLimit = Number(schedule.patientLimit || 0);
+
+    if (patientLimit > 0 && activeAppointments.length >= patientLimit) {
+      return null;
+    }
+
+    const startMinutes = timeToMinutes(schedule.startTime);
+    const endMinutes = timeToMinutes(schedule.endTime);
+    const totalWindowMinutes = Math.max(1, endMinutes - startMinutes);
+    const slotDuration = Math.max(1, Math.floor(totalWindowMinutes / Math.max(patientLimit || 1, 1)));
+
+    const occupiedTimes = new Set(
+      activeAppointments
+        .map((appointment) => appointment.appointmentDateTime?.split('T')[1]?.slice(0, 5))
+        .filter(Boolean)
+    );
+
+    for (let slotIndex = 0; slotIndex < Math.max(patientLimit || 1, 1); slotIndex += 1) {
+      const slotMinutes = startMinutes + (slotIndex * slotDuration);
+      if (slotMinutes >= endMinutes) {
+        break;
+      }
+
+      const slotTime = minutesToTime(slotMinutes);
+      if (!occupiedTimes.has(slotTime)) {
+        return `${scheduleDate}T${slotTime}:00`;
+      }
+    }
+
+    return null;
+  };
+
   // const fetchAppointments = async () => {
   //   try {
   //     const response = await fetch('http://localhost:8084/appointments');
@@ -287,12 +382,7 @@ const BookAppointmentPage = () => {
     const today = new Date();
     const scheduleDate = getScheduleDate(today, schedule.day);
     
-    const appointmentsForDate = doctorAppointments.filter(appointment => {
-      const appointmentDate = appointment.appointmentDateTime ? 
-        appointment.appointmentDateTime.split('T')[0] : '';
-      return appointmentDate === scheduleDate && 
-             appointment.status !== 'CANCELLED';
-    });
+    const appointmentsForDate = getActiveAppointmentsForDate(scheduleDate);
 
     const availableSeats = schedule.patientLimit - appointmentsForDate.length;
     return Math.max(0, availableSeats);
@@ -335,16 +425,17 @@ const BookAppointmentPage = () => {
     return getNextAppointmentNumber(selectedScheduleDate);
   }, [doctorAppointments, selectedScheduleDate]);
 
-  const patientDisplayName = patientDetails.patientName || storedUser?.name || 'Patient';
-  const patientInitials = useMemo(() => getPatientInitials(patientDisplayName), [patientDisplayName]);
-  const hasLinkedPatient = Boolean(patientDetails.patientId);
+  const projectedAppointmentTime = useMemo(() => {
+    if (!selectedSchedule || !selectedScheduleDate) {
+      return '';
+    }
 
-  const handlePatientLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    sessionStorage.removeItem('latestAppointment');
-    window.location.href = '/login';
-  };
+    const nextSlotDateTime = getNextAvailableSlotDateTime(selectedSchedule, selectedScheduleDate);
+    return nextSlotDateTime ? nextSlotDateTime.split('T')[1]?.slice(0, 5) || '' : '';
+  }, [doctorAppointments, selectedSchedule, selectedScheduleDate]);
+
+  const patientDisplayName = patientDetails.patientName || storedUser?.name || 'Patient';
+  const hasLinkedPatient = Boolean(patientDetails.patientId);
 
   const handlePaymentChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -370,6 +461,8 @@ const BookAppointmentPage = () => {
     setBookingError('');
     setPaymentResult(null);
     setPaymentError('');
+    setTelemedicineError('');
+    setTelemedicineSession(null);
   };
 
   const handleProcessPayment = async (event) => {
@@ -405,7 +498,7 @@ const BookAppointmentPage = () => {
     }
   };
 
-  const createTelemedicineSession = async (appointmentDate) => {
+  const createTelemedicineSession = async (appointmentDateTime) => {
     try {
       const telemedicineRequest = {
         doctorId: selectedDoctor.doctorId,
@@ -413,8 +506,8 @@ const BookAppointmentPage = () => {
         patientName: patientDetails.patientName.trim() || 'Patient',
         doctorName: selectedDoctor.name,
         doctorSpecialty: selectedDoctor.specialty,
-        consultationType: 'TELEMEDICINE',
-        appointmentDateTime: `${appointmentDate}T${selectedSchedule.startTime}:00`,
+        consultationType: normalizeConsultationType(appointmentData.consultationType),
+        appointmentDateTime,
         notes: appointmentData.notes
       };
 
@@ -429,18 +522,25 @@ const BookAppointmentPage = () => {
       if (response.ok) {
         const telemedicineSession = await response.json();
         console.log('Telemedicine session created:', telemedicineSession);
+        return telemedicineSession;
       }
+
+      const errorText = await response.text();
+      console.error('Telemedicine session creation failed:', errorText);
     } catch (error) {
       console.error('Error creating telemedicine session:', error);
     }
+
+    return null;
   };
 
   const handleScheduleSelect = (schedule) => {
     setSelectedSchedule(schedule);
+    const normalizedType = normalizeConsultationType(schedule.consultationType);
     // Reset consultation type to match schedule capabilities
-    if (schedule.consultationType === 'IN_PERSON') {
+    if (normalizedType === 'IN_PERSON') {
       setAppointmentData(prev => ({ ...prev, consultationType: 'IN_PERSON' }));
-    } else if (schedule.consultationType === 'TELEMEDICINE') {
+    } else if (normalizedType === 'TELEMEDICINE') {
       setAppointmentData(prev => ({ ...prev, consultationType: 'TELEMEDICINE' }));
     } else {
       setAppointmentData(prev => ({ ...prev, consultationType: 'IN_PERSON' })); // Default to IN_PERSON for BOTH
@@ -451,15 +551,22 @@ const BookAppointmentPage = () => {
   const handleBookAppointment = async () => {
     setBookingLoading(true);
     setBookingError('');
+    setTelemedicineError('');
+    setTelemedicineSession(null);
     try {
       // Create appointment date time properly (must be in the future)
       const today = new Date();
       const appointmentDate = getScheduleDate(today, selectedSchedule.day); // Get correct schedule date
-      const appointmentDateTime = `${appointmentDate}T${selectedSchedule.startTime}:00`;
+      const appointmentDateTime = getNextAvailableSlotDateTime(selectedSchedule, appointmentDate);
 
       // Calculate next appointment number
       const nextAppointmentNumber = getNextAppointmentNumber(appointmentDate);
       const doctorHospital = getHospitalName(selectedSchedule.hospitalId);
+
+      if (!appointmentDateTime) {
+        setBookingError('This schedule has reached its patient limit for the selected day.');
+        return;
+      }
 
       const appointmentRequest = {
         patientId: patientDetails.patientId.trim(),
@@ -485,21 +592,30 @@ const BookAppointmentPage = () => {
       if (response.ok) {
         const createdAppointment = await response.json();
         sessionStorage.setItem('latestAppointment', JSON.stringify(createdAppointment));
+        let createdTelemedicineSession = null;
         
         // If consultation type is telemedicine, create telemedicine session
-        if (appointmentData.consultationType === 'TELEMEDICINE') {
-          await createTelemedicineSession(appointmentDate);
+        if (isTelemedicineType(appointmentData.consultationType)) {
+          createdTelemedicineSession = await createTelemedicineSession(appointmentDateTime);
+          setTelemedicineSession(createdTelemedicineSession);
         }
 
         const successAppointment = {
           ...createdAppointment,
+          doctorId: createdAppointment.doctorId || selectedDoctor.doctorId,
+          patientId: createdAppointment.patientId || patientDetails.patientId.trim(),
           appointmentNumber: createdAppointment.appointmentNumber ?? nextAppointmentNumber,
           doctorName: createdAppointment.doctorName || selectedDoctor.name,
           doctorSpecialty: createdAppointment.doctorSpecialty || selectedDoctor.specialty,
           doctorHospital: createdAppointment.doctorHospital || doctorHospital,
           consultationFee: createdAppointment.consultationFee || selectedDoctor.fee || 50,
+          consultationType: createdAppointment.consultationType || appointmentData.consultationType,
           appointmentDateTime: createdAppointment.appointmentDateTime || appointmentDateTime,
         };
+
+        if (isTelemedicineType(appointmentData.consultationType) && !createdTelemedicineSession) {
+          setTelemedicineError('The appointment was booked, but the video room could not be loaded immediately. Please refresh or check the telemedicine session again in a moment.');
+        }
 
         setBookingSuccess(successAppointment);
         setPaymentForm({
@@ -534,38 +650,43 @@ const BookAppointmentPage = () => {
   const getConsultationTypeLabel = (type) => {
     const typeMap = {
       'IN_PERSON': 'In Person',
-      'TELEMEDICINE': 'Telemedicine'
+      'ONLINE': 'Online',
+      'TELEMEDICINE': 'Telemedicine',
+      'BOTH': 'In Person or Telemedicine'
     };
     return typeMap[type] || type;
   };
 
   const shouldShowConsultationType = (scheduleConsultationType, selectedConsultationType) => {
+    const normalizedScheduleType = normalizeConsultationType(scheduleConsultationType);
+    const normalizedSelectedType = normalizeConsultationType(selectedConsultationType);
     // If schedule supports BOTH, show both options
-    if (scheduleConsultationType === 'BOTH') {
+    if (normalizedScheduleType === 'BOTH') {
       return true;
     }
     // If schedule is IN_PERSON, only show IN_PERSON option
-    if (scheduleConsultationType === 'IN_PERSON') {
-      return selectedConsultationType === 'IN_PERSON';
+    if (normalizedScheduleType === 'IN_PERSON') {
+      return normalizedSelectedType === 'IN_PERSON';
     }
     // If schedule is TELEMEDICINE, only show TELEMEDICINE option
-    if (scheduleConsultationType === 'TELEMEDICINE') {
-      return selectedConsultationType === 'TELEMEDICINE';
+    if (normalizedScheduleType === 'TELEMEDICINE') {
+      return normalizedSelectedType === 'TELEMEDICINE';
     }
     return false;
   };
 
   const getAvailableConsultationTypes = (scheduleConsultationType) => {
-    if (scheduleConsultationType === 'BOTH') {
+    const normalizedScheduleType = normalizeConsultationType(scheduleConsultationType);
+    if (normalizedScheduleType === 'BOTH') {
       return [
         { value: 'IN_PERSON', label: 'In Person' },
         { value: 'TELEMEDICINE', label: 'Telemedicine' }
       ];
     }
-    if (scheduleConsultationType === 'IN_PERSON') {
+    if (normalizedScheduleType === 'IN_PERSON') {
       return [{ value: 'IN_PERSON', label: 'In Person' }];
     }
-    if (scheduleConsultationType === 'TELEMEDICINE') {
+    if (normalizedScheduleType === 'TELEMEDICINE') {
       return [{ value: 'TELEMEDICINE', label: 'Telemedicine' }];
     }
     return [];
@@ -587,101 +708,8 @@ const BookAppointmentPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-4 flex justify-end">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowPatientProfile((prev) => !prev)}
-              className="flex items-center gap-3 rounded-2xl border border-white/80 bg-white/90 px-4 py-3 text-left shadow-medical backdrop-blur-sm transition hover:shadow-medical-lg"
-            >
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-500 text-sm font-bold text-white shadow-medical">
-                {patientInitials}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-medilink-dark">{patientDisplayName}</p>
-                <p className="truncate text-xs text-gray-500">
-                  {patientProfile?.email || storedUser?.email || 'Patient profile'}
-                </p>
-              </div>
-              <ChevronDown className="h-4 w-4 text-gray-400" />
-            </button>
-
-            {showPatientProfile && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Close patient profile"
-                  className="fixed inset-0 z-10 cursor-default bg-transparent"
-                  onClick={() => setShowPatientProfile(false)}
-                />
-                <div className="absolute right-0 z-20 mt-3 w-[320px] rounded-3xl border border-white/80 bg-white/95 p-5 shadow-medical-lg backdrop-blur-sm">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-500 text-lg font-bold text-white shadow-medical">
-                      {patientInitials}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-medilink-primary">Patient Profile</p>
-                      <h2 className="mt-2 break-words text-xl font-bold text-medilink-dark">{patientDisplayName}</h2>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {hasLinkedPatient
-                          ? 'Your profile is linked to this login session.'
-                          : 'No linked patient profile was found yet.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 space-y-3">
-                    <div className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <IdCard className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Patient ID</p>
-                        <p className="mt-1 break-all text-sm font-semibold text-medilink-dark">{patientDetails.patientId || 'Not linked'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <Mail className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Email</p>
-                        <p className="mt-1 break-all text-sm font-semibold text-medilink-dark">{patientProfile?.email || storedUser?.email || 'Not available'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <Phone className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Phone</p>
-                        <p className="mt-1 break-words text-sm font-semibold text-medilink-dark">{patientProfile?.phone || 'Not available'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Address</p>
-                        <p className="mt-1 break-words text-sm font-semibold text-medilink-dark">{patientProfile?.address || 'Not available'}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {patientLookupError && (
-                    <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                      <span>{patientLookupError}</span>
-                    </div>
-                  )}
-
-                  <div className="mt-5 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handlePatientLogout}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-100"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Logout
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+        <div className="mb-6">
+          <PatientPortalTabs />
         </div>
 
         <div className="mb-8 overflow-hidden rounded-3xl bg-gradient-to-r from-medilink-primary to-medilink-secondary p-8 text-white shadow-medical-lg">
@@ -729,7 +757,7 @@ const BookAppointmentPage = () => {
               <div>
                 <h2 className="text-2xl font-bold text-medilink-dark">Follow the steps to complete your booking</h2>
                 <p className="mt-2 max-w-2xl text-sm text-gray-500">
-                  Open the patient profile button in the top-right corner any time to review your linked details while you continue the booking flow.
+                  Browse doctors, choose a slot, and complete your booking here. Use the tabs above to switch to your profile or bookings any time.
                 </p>
               </div>
               {patientLoading && (
@@ -976,8 +1004,8 @@ const BookAppointmentPage = () => {
                       </div>
                       <div className="flex items-center mt-1">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          schedule.consultationType === 'IN_PERSON' ? 'bg-blue-100 text-blue-800' :
-                          schedule.consultationType === 'TELEMEDICINE' ? 'bg-green-100 text-green-800' :
+                          normalizeConsultationType(schedule.consultationType) === 'IN_PERSON' ? 'bg-blue-100 text-blue-800' :
+                          normalizeConsultationType(schedule.consultationType) === 'TELEMEDICINE' ? 'bg-green-100 text-green-800' :
                           'bg-purple-100 text-purple-800'
                         }`}>
                           {getConsultationTypeLabel(schedule.consultationType)}
@@ -1019,6 +1047,9 @@ const BookAppointmentPage = () => {
                 <h3 className="font-semibold text-gray-900">Schedule Details</h3>
                 <p className="text-gray-600">{selectedSchedule?.day}</p>
                 <p className="text-gray-600">{selectedSchedule?.startTime} - {selectedSchedule?.endTime}</p>
+                {projectedAppointmentTime && (
+                  <p className="text-gray-600">Estimated slot: {projectedAppointmentTime}</p>
+                )}
                 <p className="text-gray-600">Consultation Fee: Rs. {selectedDoctor?.fee || 50}</p>
                 <div className="mt-2 p-3 bg-green-50 rounded-md">
                   <p className="text-sm text-green-800">
@@ -1121,7 +1152,9 @@ const BookAppointmentPage = () => {
               <div className="mt-8 rounded-2xl bg-white/10 p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-white/70">Next Step</p>
                 <p className="mt-2 text-sm text-white/90">
-                  Complete the payment to confirm the appointment automatically in the appointment service.
+                  {isTelemedicineType(bookingSuccess.consultationType)
+                    ? 'Complete payment and your secure Jitsi video room will be ready for this consultation.'
+                    : 'Complete the payment to confirm the appointment automatically in the appointment service.'}
                 </p>
               </div>
             </div>
@@ -1239,6 +1272,33 @@ const BookAppointmentPage = () => {
                       {paymentResult.transactionReference && (
                         <p className="mt-1">Transaction: {paymentResult.transactionReference}</p>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {telemedicineError && (
+                  <div className="flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4 text-sm text-amber-700">
+                    <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{telemedicineError}</span>
+                  </div>
+                )}
+
+                {telemedicineSession?.jitsiUrl && (
+                  <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-4 text-sm text-sky-800">
+                    <p className="font-semibold">Telemedicine video session ready</p>
+                    <p className="mt-1 text-sky-700">
+                      This appointment includes a secure Jitsi Meet room for the doctor and patient.
+                    </p>
+                    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="truncate text-xs text-sky-600">{telemedicineSession.jitsiUrl}</p>
+                      <button
+                        type="button"
+                        onClick={() => window.open(telemedicineSession.jitsiUrl, '_blank', 'noopener,noreferrer')}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Join Video Session
+                      </button>
                     </div>
                   </div>
                 )}
