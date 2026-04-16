@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import AllMedicalLocations from '../../components/AllMedicalLocations'
+import AllMedicalLocations from '../../components/ui/AllMedicalLocations'
 
 const AddMedicalLocation = () => {
     const [showForm, setShowForm] = useState(true)

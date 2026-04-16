@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import AllRegisteredDoctors from '../../components/AllRegisteredDoctors'
-
+import AllRegisteredDoctors from '../../components/ui/AllRegisteredDoctors'
 const AddDoctor = () => {
     const [formData, setFormData] = useState({
         name: '',
@@ -41,7 +40,7 @@ const AddDoctor = () => {
     const fetchAvailableHospitals = async () => {
         try {
             console.log('Fetching available hospitals')
-            const response = await fetch('/api/hospitals')
+            const response = await fetch('http://localhost:8083/api/hospitals')
             if (response.ok) {
                 const data = await response.json()
                 setAvailableHospitals(data)
@@ -88,7 +87,7 @@ const AddDoctor = () => {
         setMessage('')
 
         try {
-            const response = await fetch('/api/doctors', {
+            const response = await fetch('http://localhost:8083/api/doctors', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

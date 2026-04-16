@@ -1,25 +1,103 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import LoginPage from './pages/auth/LoginPage'
+import RegisterPage from './pages/auth/RegisterPage'
+import AdminRegisterPage from './pages/auth/AdminRegisterPage'
+import DoctorRegisterPage from './pages/auth/DoctorRegisterPage'
+import AdminDashboard from './pages/admin/AdminDashboard'
+import DoctorDashboard from './pages/doctor/DoctorDashboard'
+import PatientDashboard from './pages/patient/PatientDashboard'
+import MyAppointmentsPage from './pages/patient/MyAppointmentsPage'
+import PaymentCheckoutPage from './pages/patient/PaymentCheckoutPage'
+import BookAppointmentPage from './pages/patient/BookAppointmentPage'
+import AppointmentsPage from './pages/doctor/AppointmentsPage'
+import PatientsPage from './pages/doctor/PatientsPage'
+import TelemedicinePage from './pages/doctor/TelemedicinePage'
+import PrescriptionsPage from './pages/doctor/PrescriptionsPage'
+import SchedulePage from './pages/doctor/SchedulePage'
+import FindDoctorsPage from './pages/doctor/FindDoctorsPage'
 import AddMedicalLocation from './pages/doctor/AddMedicalLocation'
 import AddDoctor from './pages/doctor/AddDoctor'
-import AllRegisteredDoctors from './components/AllRegisteredDoctors'
+import AddHospital from './pages/doctor/AddHospital'
+import AddPrescription from './pages/doctor/AddPrescription'
+import AddSchedule from './pages/doctor/AddSchedule'
+import ViewHospitals from './pages/doctor/ViewHospitals'
+import ViewDoctors from './pages/doctor/ViewDoctors'
+import ViewSchedules from './pages/doctor/ViewSchedules'
 import PrescriptionWriting from './pages/doctor/PrescriptionWriting'
 import AvailabilitySchedulePage from './pages/doctor/AvailabilitySchedulePage'
+import ProtectedRoute from './components/Admin/ProtectedRoute'
 
 function App() {
   return (
     <Router>
       <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/register/admin" element={<AdminRegisterPage />} />
+        <Route path="/register/doctor" element={<DoctorRegisterPage />} />
+
         <Route path="/" element={<Layout />}>
           <Route index element={<LoginPage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="register" element={<RegisterPage />} />
+
+          <Route path="patient" element={<Navigate replace to="/patient/dashboard" />} />
+          <Route path="patient/dashboard" element={<PatientDashboard />} />
+          <Route path="patient/book-appointment" element={<BookAppointmentPage />} />
+          <Route path="patient/appointments" element={<MyAppointmentsPage />} />
+          <Route path="patient/payment" element={<PaymentCheckoutPage />} />
+
+          <Route path="doctor" element={<Navigate replace to="/doctor/dashboard" />} />
+          <Route path="doctor/dashboard" element={<DoctorDashboard />} />
+          <Route path="doctor/appointments" element={<AppointmentsPage />} />
+          <Route path="doctor/patients" element={<PatientsPage />} />
+          <Route path="doctor/telemedicine" element={<TelemedicinePage />} />
+          <Route path="doctor/prescriptions" element={<PrescriptionsPage />} />
+          <Route path="doctor/schedule" element={<SchedulePage />} />
+          <Route path="doctor/view-doctors" element={<FindDoctorsPage />} />
           <Route path="doctor/medical-location" element={<AddMedicalLocation />} />
           <Route path="doctor/add-doctor" element={<AddDoctor />} />
-          <Route path="doctor/view-doctors" element={<AllRegisteredDoctors />} />
+          <Route path="doctor/add-hospital" element={<AddHospital />} />
+          <Route path="doctor/view-hospitals" element={<ViewHospitals />} />
+          <Route path="doctor/add-prescription" element={<AddPrescription />} />
+          <Route path="doctor/add-schedule" element={<AddSchedule />} />
+          <Route path="doctor/view-schedules" element={<ViewSchedules />} />
+          <Route path="doctor/view-doctors-list" element={<ViewDoctors />} />
           <Route path="doctor/prescription-writing" element={<PrescriptionWriting />} />
           <Route path="doctor/availability-schedule" element={<AvailabilitySchedulePage />} />
+
+          <Route path="admin" element={<AdminDashboard />} />
+          <Route path="admin/dashboard" element={<AdminDashboard />} />
         </Route>
+
+        <Route
+          path="/admin-protected"
+          element={
+            <ProtectedRoute allowedRole="ADMIN">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/doctor-protected"
+          element={
+            <ProtectedRoute allowedRole="DOCTOR">
+              <DoctorDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient-protected"
+          element={
+            <ProtectedRoute allowedRole="PATIENT">
+              <PatientDashboard />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </Router>
   )
