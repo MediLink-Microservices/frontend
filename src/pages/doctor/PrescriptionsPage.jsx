@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DoctorSidebar from '../../components/layout/DoctorSidebar';
 import DoctorHeader from '../../components/layout/DoctorHeader';
+import { getStoredUser } from '../../utils/authStorage';
 import { 
   FileText, 
   Plus, 
@@ -52,10 +53,7 @@ const PrescriptionsPage = () => {
   const DOCTOR_ID = '69dda11899183b33e3e63c9f';
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
+    setUser(getStoredUser());
     fetchPrescriptions();
   }, []);
 

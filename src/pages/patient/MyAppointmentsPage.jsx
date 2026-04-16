@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
   CalendarDays,
@@ -6,37 +6,195 @@ import {
   CreditCard,
   Hospital,
   LoaderCircle,
-  Search,
+  PencilLine,
+  RefreshCcw,
+  ShieldCheck,
   Stethoscope,
   UserRound,
   XCircle,
 } from 'lucide-react';
+import PatientPortalTabs from '../../components/patient/PatientPortalTabs';
+import { appointmentAPI, patientAPI } from '../../services/api';
+import { getStoredUser } from '../../utils/authStorage';
+
+const POLL_INTERVAL_MS = 15000;
+
+const getStatusClasses = (status) => {
+  switch (status) {
+    case 'CONFIRMED':
+      return 'bg-emerald-50 text-emerald-700';
+    case 'PENDING_PAYMENT':
+      return 'bg-amber-50 text-amber-700';
+    case 'CANCELLED':
+      return 'bg-red-50 text-red-700';
+    case 'COMPLETED':
+      return 'bg-violet-50 text-violet-700';
+    default:
+      return 'bg-sky-50 text-sky-700';
+  }
+};
+
+const canManageAppointment = (status) => !['CANCELLED', 'COMPLETED'].includes(status);
+
+const formatDateTimeLocalValue = (dateTime) => {
+  if (!dateTime) {
+    return '';
+  }
+
+  const parsed = new Date(dateTime);
+  if (Number.isNaN(parsed.getTime())) {
+    return '';
+  }
+
+  const offsetMs = parsed.getTimezoneOffset() * 60000;
+  return new Date(parsed.getTime() - offsetMs).toISOString().slice(0, 16);
+};
 
 const MyAppointmentsPage = () => {
-  const [patientId, setPatientId] = useState('');
+  const storedUser = useMemo(() => getStoredUser(), []);
+  const [patientProfile, setPatientProfile] = useState(null);
   const [appointments, setAppointments] = useState([]);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [modalMode, setModalMode] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [newDateTime, setNewDateTime] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const handleLoadAppointments = async (event) => {
-    event.preventDefault();
-    setLoading(true);
-    setError('');
+  const patientId = patientProfile?.id || '';
+
+  const loadAppointments = async ({ silent = false } = {}) => {
+    const authUserId = storedUser?.userId || storedUser?.id;
+
+    if (!authUserId) {
+      setError('No logged-in patient session was found. Please sign in again.');
+      setLoading(false);
+      return;
+    }
+
+    if (silent) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
 
     try {
-      const response = await fetch(`http://localhost:8084/api/appointments/patient/${patientId}`);
-      const payload = await response.json().catch(() => []);
+      setError('');
+      const profileResponse = await patientAPI.getPatientProfileByAuthUserId(authUserId);
+      const profile = profileResponse.data;
+      setPatientProfile(profile);
 
-      if (!response.ok) {
-        throw new Error(payload.message || 'Failed to load appointments.');
-      }
-
-      setAppointments(Array.isArray(payload) ? payload : []);
+      const appointmentsResponse = await patientAPI.getPatientAppointments(profile.id);
+      const appointmentList = Array.isArray(appointmentsResponse.data) ? appointmentsResponse.data : [];
+      appointmentList.sort((first, second) => new Date(second.appointmentDateTime) - new Date(first.appointmentDateTime));
+      setAppointments(appointmentList);
     } catch (requestError) {
       setAppointments([]);
-      setError(requestError.message);
+      setPatientProfile(null);
+      setError(
+        requestError?.response?.data?.message
+        || requestError?.message
+        || 'Failed to load your appointments.'
+      );
     } finally {
       setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAppointments();
+  }, []);
+
+  useEffect(() => {
+    if (!patientId) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      loadAppointments({ silent: true });
+    }, POLL_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [patientId]);
+
+  const openCancelModal = (appointment) => {
+    setSelectedAppointment(appointment);
+    setModalMode('cancel');
+    setCancelReason('');
+    setNewDateTime('');
+    setActionError('');
+  };
+
+  const openRescheduleModal = (appointment) => {
+    setSelectedAppointment(appointment);
+    setModalMode('reschedule');
+    setCancelReason('');
+    setNewDateTime(formatDateTimeLocalValue(appointment.appointmentDateTime));
+    setActionError('');
+  };
+
+  const closeModal = () => {
+    setSelectedAppointment(null);
+    setModalMode('');
+    setCancelReason('');
+    setNewDateTime('');
+    setActionError('');
+    setActionLoading(false);
+  };
+
+  const handleCancelAppointment = async () => {
+    if (!selectedAppointment?.id) {
+      return;
+    }
+
+    if (!cancelReason.trim()) {
+      setActionError('Please provide a cancellation reason.');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      setActionError('');
+      await appointmentAPI.cancelAppointment(selectedAppointment.id, cancelReason.trim());
+      await loadAppointments({ silent: true });
+      closeModal();
+    } catch (requestError) {
+      setActionError(
+        requestError?.response?.data?.message
+        || requestError?.message
+        || 'Failed to cancel the appointment.'
+      );
+      setActionLoading(false);
+    }
+  };
+
+  const handleRescheduleAppointment = async () => {
+    if (!selectedAppointment?.id) {
+      return;
+    }
+
+    if (!newDateTime) {
+      setActionError('Please choose a new appointment date and time.');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      setActionError('');
+      await appointmentAPI.updateAppointmentTime(selectedAppointment.id, newDateTime);
+      await loadAppointments({ silent: true });
+      closeModal();
+    } catch (requestError) {
+      setActionError(
+        requestError?.response?.data?.message
+        || requestError?.message
+        || 'Failed to reschedule the appointment.'
+      );
+      setActionLoading(false);
     }
   };
 
@@ -50,59 +208,52 @@ const MyAppointmentsPage = () => {
                 <ClipboardList className="h-4 w-4" />
                 Patient Appointment Center
               </div>
-              <h1 className="mt-4 text-4xl font-bold font-display">View your appointments in one place</h1>
+              <h1 className="mt-4 text-4xl font-bold font-display">Manage your appointments in one place</h1>
               <p className="mt-3 max-w-2xl text-white/85">
-                Load a patient profile, review appointment status, and quickly see doctor, hospital, and payment-related details.
+                Review real-time appointment status, reschedule upcoming bookings, or cancel visits when plans change.
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:w-[320px]">
+            <div className="grid gap-3 sm:grid-cols-2 lg:w-[360px]">
               <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
                 <p className="text-xs uppercase tracking-[0.2em] text-white/70">Loaded</p>
                 <p className="mt-2 text-2xl font-bold">{appointments.length}</p>
               </div>
               <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
                 <p className="text-xs uppercase tracking-[0.2em] text-white/70">Patient ID</p>
-                <p className="mt-2 truncate text-lg font-semibold">{patientId || 'Waiting'}</p>
+                <p className="mt-2 truncate text-lg font-semibold">{patientId || 'Linking...'}</p>
               </div>
             </div>
           </div>
         </div>
 
+        <div className="mb-6">
+          <PatientPortalTabs />
+        </div>
+
         <div className="rounded-3xl border border-white/80 bg-white p-6 shadow-medical lg:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-medilink-primary">Lookup</p>
-              <h2 className="mt-2 text-2xl font-bold text-medilink-dark">Find patient appointment records</h2>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-medilink-primary">Live Tracking</p>
+              <h2 className="mt-2 text-2xl font-bold text-medilink-dark">Your linked appointment history</h2>
+              <p className="mt-2 text-sm text-gray-500">
+                This page refreshes automatically every {POLL_INTERVAL_MS / 1000} seconds while you are signed in.
+              </p>
             </div>
-            <form className="flex w-full flex-col gap-4 md:flex-row lg:max-w-3xl" onSubmit={handleLoadAppointments}>
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  className="block w-full rounded-2xl border border-gray-200 px-11 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100"
-                  onChange={(event) => setPatientId(event.target.value)}
-                  placeholder="Enter patient ID"
-                  required
-                  value={patientId}
-                />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
+                <span className="font-semibold text-medilink-dark">{patientProfile ? `${patientProfile.firstName} ${patientProfile.lastName}`.trim() : storedUser?.name || 'Patient'}</span>
+                <p className="mt-1 text-xs text-gray-500">{patientProfile?.email || storedUser?.email || 'No email available'}</p>
               </div>
               <button
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-medilink-primary to-medilink-secondary px-6 py-3 text-sm font-semibold text-white shadow-medical transition hover:shadow-medical-lg disabled:opacity-50"
-                disabled={loading}
-                type="submit"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-700 transition hover:border-medilink-primary hover:text-medilink-primary disabled:opacity-50"
+                disabled={refreshing || loading}
+                onClick={() => loadAppointments({ silent: true })}
+                type="button"
               >
-                {loading ? (
-                  <>
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <Search className="h-4 w-4" />
-                    Load Appointments
-                  </>
-                )}
+                <RefreshCcw className={`h-4 w-4 ${(refreshing || loading) ? 'animate-spin' : ''}`} />
+                Refresh
               </button>
-            </form>
+            </div>
           </div>
 
           {error && (
@@ -112,82 +263,206 @@ const MyAppointmentsPage = () => {
             </div>
           )}
 
-          <div className="mt-8 space-y-5">
-            {appointments.length === 0 && !error && !loading && (
-              <div className="rounded-2xl border border-dashed border-gray-200 bg-slate-50 px-6 py-10 text-center text-sm text-gray-500">
-                No appointments loaded yet. Enter a patient ID to view booking and payment progress.
-              </div>
-            )}
+          {loading ? (
+            <div className="mt-8 flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-slate-50 px-6 py-12 text-sm text-gray-500">
+              <LoaderCircle className="mr-3 h-5 w-5 animate-spin text-medilink-primary" />
+              Loading your linked appointments...
+            </div>
+          ) : (
+            <div className="mt-8 space-y-5">
+              {appointments.length === 0 && !error && (
+                <div className="rounded-2xl border border-dashed border-gray-200 bg-slate-50 px-6 py-10 text-center text-sm text-gray-500">
+                  No appointments have been booked for this patient yet.
+                </div>
+              )}
 
-            {appointments.map((appointment) => (
-              <div
-                key={appointment.id}
-                className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-medical"
-              >
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-2xl bg-sky-50 p-3">
-                        <Stethoscope className="h-5 w-5 text-medilink-primary" />
+              {appointments.map((appointment) => (
+                <div
+                  key={appointment.id}
+                  className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-medical"
+                >
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-2xl bg-sky-50 p-3">
+                          <Stethoscope className="h-5 w-5 text-medilink-primary" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-semibold text-medilink-dark">
+                            Dr. {appointment.doctorName}
+                          </h2>
+                          <p className="text-sm text-gray-500">{appointment.doctorSpecialty}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h2 className="text-xl font-semibold text-medilink-dark">
-                          Dr. {appointment.doctorName}
-                        </h2>
-                        <p className="text-sm text-gray-500">{appointment.doctorSpecialty}</p>
+
+                      <div className="grid gap-3 text-sm text-gray-600 md:grid-cols-2">
+                        <p className="flex items-start gap-3">
+                          <Hospital className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
+                          <span>{appointment.doctorHospital}</span>
+                        </p>
+                        <p className="flex items-start gap-3">
+                          <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
+                          <span>{new Date(appointment.appointmentDateTime).toLocaleString('en-LK')}</span>
+                        </p>
+                        <p className="flex items-start gap-3">
+                          <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
+                          <span>Appointment No: {appointment.appointmentNumber ?? 'Not assigned'}</span>
+                        </p>
+                        <p className="flex items-start gap-3">
+                          <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
+                          <span>Fee: Rs. {appointment.consultationFee}</span>
+                        </p>
+                        <p className="flex items-start gap-3">
+                          <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
+                          <span>Patient ID: {appointment.patientId}</span>
+                        </p>
+                        <p className="flex items-start gap-3">
+                          <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
+                          <span>Consultation: {appointment.consultationType}</span>
+                        </p>
                       </div>
                     </div>
 
-                    <div className="grid gap-3 text-sm text-gray-600 md:grid-cols-2">
-                      <p className="flex items-start gap-3">
-                        <Hospital className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
-                        <span>{appointment.doctorHospital}</span>
-                      </p>
-                      <p className="flex items-start gap-3">
-                        <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
-                        <span>{new Date(appointment.appointmentDateTime).toLocaleString('en-LK')}</span>
-                      </p>
-                      <p className="flex items-start gap-3">
-                        <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
-                        <span>Appointment No: {appointment.appointmentNumber ?? 'Not assigned'}</span>
-                      </p>
-                      <p className="flex items-start gap-3">
-                        <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
-                        <span>Fee: Rs. {appointment.consultationFee}</span>
-                      </p>
-                      <p className="flex items-start gap-3">
-                        <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
-                        <span>Patient ID: {appointment.patientId}</span>
-                      </p>
-                      <p className="flex items-start gap-3">
-                        <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
-                        <span>Consultation: {appointment.consultationType}</span>
-                      </p>
-                    </div>
-                  </div>
+                    <div className="flex flex-wrap gap-3 xl:max-w-sm xl:flex-col xl:items-end">
+                      <span className={`inline-flex rounded-full px-4 py-2 text-sm font-semibold ${getStatusClasses(appointment.status)}`}>
+                        {appointment.status}
+                      </span>
+                      <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs text-gray-500">
+                        Created {new Date(appointment.createdAt).toLocaleString('en-LK')}
+                      </div>
 
-                  <div className="flex flex-wrap gap-3 xl:max-w-xs xl:flex-col xl:items-end">
-                    <span className={`inline-flex rounded-full px-4 py-2 text-sm font-semibold ${
-                      appointment.status === 'CONFIRMED'
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : appointment.status === 'PENDING_PAYMENT'
-                          ? 'bg-amber-50 text-amber-700'
-                          : appointment.status === 'CANCELLED'
-                            ? 'bg-red-50 text-red-700'
-                            : 'bg-sky-50 text-sky-700'
-                    }`}>
-                      {appointment.status}
-                    </span>
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs text-gray-500">
-                      Created {new Date(appointment.createdAt).toLocaleString('en-LK')}
+                      {canManageAppointment(appointment.status) && (
+                        <div className="flex flex-wrap justify-end gap-3">
+                          <button
+                            className="inline-flex items-center gap-2 rounded-2xl border border-sky-200 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:border-sky-400 hover:bg-sky-50"
+                            onClick={() => openRescheduleModal(appointment)}
+                            type="button"
+                          >
+                            <PencilLine className="h-4 w-4" />
+                            Reschedule
+                          </button>
+                          <button
+                            className="inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:border-red-400 hover:bg-red-50"
+                            onClick={() => openCancelModal(appointment)}
+                            type="button"
+                          >
+                            <XCircle className="h-4 w-4" />
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+
+      {selectedAppointment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-medical-lg">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-medilink-primary">
+                  {modalMode === 'reschedule' ? 'Modify Booking' : 'Cancel Booking'}
+                </p>
+                <h3 className="mt-2 text-2xl font-bold text-medilink-dark">
+                  Dr. {selectedAppointment.doctorName}
+                </h3>
+                <p className="mt-2 text-sm text-gray-500">
+                  {new Date(selectedAppointment.appointmentDateTime).toLocaleString('en-LK')}
+                </p>
+              </div>
+              <button
+                className="rounded-2xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-500 transition hover:border-medilink-primary hover:text-medilink-primary"
+                onClick={closeModal}
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-gray-600">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
+                <span>
+                  Status changes sync from the appointment service automatically. Any update you make here will appear after refresh and background polling.
+                </span>
+              </div>
+            </div>
+
+            {modalMode === 'reschedule' ? (
+              <div className="mt-6">
+                <label className="mb-2 block text-sm font-semibold text-medilink-dark" htmlFor="new-date-time">
+                  Choose a new appointment date and time
+                </label>
+                <input
+                  className="block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100"
+                  id="new-date-time"
+                  min={formatDateTimeLocalValue(new Date().toISOString())}
+                  onChange={(event) => setNewDateTime(event.target.value)}
+                  type="datetime-local"
+                  value={newDateTime}
+                />
+              </div>
+            ) : (
+              <div className="mt-6">
+                <label className="mb-2 block text-sm font-semibold text-medilink-dark" htmlFor="cancel-reason">
+                  Cancellation reason
+                </label>
+                <textarea
+                  className="block min-h-32 w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100"
+                  id="cancel-reason"
+                  onChange={(event) => setCancelReason(event.target.value)}
+                  placeholder="Tell the clinic why you are cancelling this booking."
+                  value={cancelReason}
+                />
+              </div>
+            )}
+
+            {actionError && (
+              <div className="mt-6 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-sm text-red-700">
+                <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{actionError}</span>
+              </div>
+            )}
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                className="rounded-2xl border border-gray-200 px-5 py-3 text-sm font-medium text-gray-600 transition hover:border-medilink-primary hover:text-medilink-primary"
+                onClick={closeModal}
+                type="button"
+              >
+                Keep current booking
+              </button>
+              <button
+                className={`inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold text-white shadow-medical transition hover:shadow-medical-lg disabled:opacity-60 ${
+                  newDateTime
+                    ? 'bg-gradient-to-r from-medilink-primary to-medilink-secondary'
+                    : 'bg-gradient-to-r from-red-500 to-rose-500'
+                }`}
+                disabled={actionLoading}
+                onClick={modalMode === 'reschedule' ? handleRescheduleAppointment : handleCancelAppointment}
+                type="button"
+              >
+                {actionLoading ? (
+                  <>
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    {modalMode === 'reschedule' ? <PencilLine className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                    {modalMode === 'reschedule' ? 'Confirm reschedule' : 'Confirm cancellation'}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

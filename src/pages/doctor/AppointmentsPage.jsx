@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DoctorSidebar from '../../components/layout/DoctorSidebar';
 import DoctorHeader from '../../components/layout/DoctorHeader';
+import { getStoredUser } from '../../utils/authStorage';
 import { 
   Calendar, 
   Clock, 
@@ -50,8 +51,7 @@ const AppointmentsPage = () => {
     try {
       setLoading(true);
       setError('');
-      const userData = localStorage.getItem('user');
-      const parsedUser = userData ? JSON.parse(userData) : null;
+      const parsedUser = getStoredUser();
       setUser(parsedUser);
 
       const doctorsResponse = await fetch('http://localhost:8083/api/doctors');

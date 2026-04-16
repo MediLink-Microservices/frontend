@@ -9,6 +9,7 @@ import AdminDashboard from './pages/admin/AdminDashboard'
 import DoctorDashboard from './pages/doctor/DoctorDashboard'
 import PatientDashboard from './pages/patient/PatientDashboard'
 import MyAppointmentsPage from './pages/patient/MyAppointmentsPage'
+import PatientProfilePage from './pages/patient/PatientProfilePage'
 import PaymentCheckoutPage from './pages/patient/PaymentCheckoutPage'
 import BookAppointmentPage from './pages/patient/BookAppointmentPage'
 import AppointmentsPage from './pages/doctor/AppointmentsPage'
@@ -44,32 +45,33 @@ function App() {
           <Route path="register" element={<RegisterPage />} />
 
           <Route path="patient" element={<Navigate replace to="/patient/dashboard" />} />
-          <Route path="patient/dashboard" element={<PatientDashboard />} />
-          <Route path="patient/book-appointment" element={<BookAppointmentPage />} />
-          <Route path="patient/appointments" element={<MyAppointmentsPage />} />
-          <Route path="patient/payment" element={<PaymentCheckoutPage />} />
+          <Route path="patient/dashboard" element={<ProtectedRoute allowedRole="PATIENT"><PatientDashboard /></ProtectedRoute>} />
+          <Route path="patient/book-appointment" element={<ProtectedRoute allowedRole="PATIENT"><BookAppointmentPage /></ProtectedRoute>} />
+          <Route path="patient/appointments" element={<ProtectedRoute allowedRole="PATIENT"><MyAppointmentsPage /></ProtectedRoute>} />
+          <Route path="patient/profile" element={<ProtectedRoute allowedRole="PATIENT"><PatientProfilePage /></ProtectedRoute>} />
+          <Route path="patient/payment" element={<ProtectedRoute allowedRole="PATIENT"><PaymentCheckoutPage /></ProtectedRoute>} />
 
           <Route path="doctor" element={<Navigate replace to="/doctor/dashboard" />} />
-          <Route path="doctor/dashboard" element={<DoctorDashboard />} />
-          <Route path="doctor/appointments" element={<AppointmentsPage />} />
-          <Route path="doctor/patients" element={<PatientsPage />} />
-          <Route path="doctor/telemedicine" element={<TelemedicinePage />} />
-          <Route path="doctor/prescriptions" element={<PrescriptionsPage />} />
-          <Route path="doctor/schedule" element={<SchedulePage />} />
-          <Route path="doctor/view-doctors" element={<FindDoctorsPage />} />
-          <Route path="doctor/medical-location" element={<AddMedicalLocation />} />
-          <Route path="doctor/add-doctor" element={<AddDoctor />} />
-          <Route path="doctor/add-hospital" element={<AddHospital />} />
-          <Route path="doctor/view-hospitals" element={<ViewHospitals />} />
-          <Route path="doctor/add-prescription" element={<AddPrescription />} />
-          <Route path="doctor/add-schedule" element={<AddSchedule />} />
-          <Route path="doctor/view-schedules" element={<ViewSchedules />} />
-          <Route path="doctor/view-doctors-list" element={<ViewDoctors />} />
-          <Route path="doctor/prescription-writing" element={<PrescriptionWriting />} />
-          <Route path="doctor/availability-schedule" element={<AvailabilitySchedulePage />} />
+          <Route path="doctor/dashboard" element={<ProtectedRoute allowedRole="DOCTOR"><DoctorDashboard /></ProtectedRoute>} />
+          <Route path="doctor/appointments" element={<ProtectedRoute allowedRole="DOCTOR"><AppointmentsPage /></ProtectedRoute>} />
+          <Route path="doctor/patients" element={<ProtectedRoute allowedRole="DOCTOR"><PatientsPage /></ProtectedRoute>} />
+          <Route path="doctor/telemedicine" element={<ProtectedRoute allowedRole="DOCTOR"><TelemedicinePage /></ProtectedRoute>} />
+          <Route path="doctor/prescriptions" element={<ProtectedRoute allowedRole="DOCTOR"><PrescriptionsPage /></ProtectedRoute>} />
+          <Route path="doctor/schedule" element={<ProtectedRoute allowedRole="DOCTOR"><SchedulePage /></ProtectedRoute>} />
+          <Route path="doctor/view-doctors" element={<ProtectedRoute allowedRole="DOCTOR"><FindDoctorsPage /></ProtectedRoute>} />
+          <Route path="doctor/medical-location" element={<ProtectedRoute allowedRole="DOCTOR"><AddMedicalLocation /></ProtectedRoute>} />
+          <Route path="doctor/add-doctor" element={<ProtectedRoute allowedRole="DOCTOR"><AddDoctor /></ProtectedRoute>} />
+          <Route path="doctor/add-hospital" element={<ProtectedRoute allowedRole="DOCTOR"><AddHospital /></ProtectedRoute>} />
+          <Route path="doctor/view-hospitals" element={<ProtectedRoute allowedRole="DOCTOR"><ViewHospitals /></ProtectedRoute>} />
+          <Route path="doctor/add-prescription" element={<ProtectedRoute allowedRole="DOCTOR"><AddPrescription /></ProtectedRoute>} />
+          <Route path="doctor/add-schedule" element={<ProtectedRoute allowedRole="DOCTOR"><AddSchedule /></ProtectedRoute>} />
+          <Route path="doctor/view-schedules" element={<ProtectedRoute allowedRole="DOCTOR"><ViewSchedules /></ProtectedRoute>} />
+          <Route path="doctor/view-doctors-list" element={<ProtectedRoute allowedRole="DOCTOR"><ViewDoctors /></ProtectedRoute>} />
+          <Route path="doctor/prescription-writing" element={<ProtectedRoute allowedRole="DOCTOR"><PrescriptionWriting /></ProtectedRoute>} />
+          <Route path="doctor/availability-schedule" element={<ProtectedRoute allowedRole="DOCTOR"><AvailabilitySchedulePage /></ProtectedRoute>} />
 
-          <Route path="admin" element={<AdminDashboard />} />
-          <Route path="admin/dashboard" element={<AdminDashboard />} />
+          <Route path="admin" element={<ProtectedRoute allowedRole="ADMIN"><AdminDashboard /></ProtectedRoute>} />
+          <Route path="admin/dashboard" element={<ProtectedRoute allowedRole="ADMIN"><AdminDashboard /></ProtectedRoute>} />
         </Route>
 
         <Route

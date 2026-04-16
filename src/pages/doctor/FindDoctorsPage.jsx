@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DoctorSidebar from '../../components/layout/DoctorSidebar';
 import DoctorHeader from '../../components/layout/DoctorHeader';
+import { getStoredUser } from '../../utils/authStorage';
 import { 
   Search, 
   Filter, 
@@ -38,10 +39,7 @@ const FindDoctorsPage = () => {
   const [selectedDoctor, setSelectedDoctor] = useState(null);
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
+    setUser(getStoredUser());
     fetchDoctors();
   }, []);
 

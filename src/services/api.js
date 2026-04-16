@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { clearAuthSession, getStoredAuthValue } from '../utils/authStorage'
 
 const DEFAULT_HEADERS = {
   'Content-Type': 'application/json',
@@ -13,7 +14,7 @@ const createClient = (baseURL) => {
 
   client.interceptors.request.use(
     (config) => {
-      const token = localStorage.getItem('token')
+      const token = getStoredAuthValue('token')
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
       }
@@ -26,7 +27,7 @@ const createClient = (baseURL) => {
     (response) => response,
     (error) => {
       if (error.response?.status === 401) {
-        localStorage.removeItem('token')
+        clearAuthSession()
         window.location.href = '/login'
       }
       return Promise.reject(error)
@@ -60,6 +61,8 @@ export const doctorAPI = {
   getAllDoctors: () => doctorClient.get('/doctors'),
   getDoctorById: (id) => doctorClient.get(`/doctors/${id}`),
   getDoctorsBySpecialty: (specialty) => doctorClient.get('/doctors/search', { params: { specialty } }),
+  createDoctor: (data) => doctorClient.post('/doctors', data),
+  getHospitals: () => doctorClient.get('/hospitals'),
   updateDoctorProfile: (id, data) => doctorClient.put(`/doctors/${id}`, data),
   getDoctorAppointments: (doctorId) => appointmentClient.get(`/appointments/doctor/${doctorId}`),
 }
@@ -76,6 +79,7 @@ export const appointmentAPI = {
   createAppointment: (data) => appointmentClient.post('/appointments/book', data),
   getAllAppointments: () => appointmentClient.get('/appointments'),
   getAppointmentById: (id) => appointmentClient.get(`/appointments/${id}`),
+  getPatientAppointments: (id) => appointmentClient.get(`/appointments/patient/${id}`),
   updateAppointmentStatus: (id, status) => appointmentClient.put(`/appointments/${id}/status`, null, { params: { status } }),
   updateAppointmentTime: (id, newDateTime) => appointmentClient.put(`/appointments/${id}/modify`, null, { params: { newDateTime } }),
   cancelAppointment: (id, reason) => appointmentClient.delete(`/appointments/${id}/cancel`, { params: { reason } }),
