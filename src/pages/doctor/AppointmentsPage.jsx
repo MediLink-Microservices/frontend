@@ -28,6 +28,7 @@ const AppointmentsPage = () => {
   const [filteredAppointments, setFilteredAppointments] = useState([]);
   const [patients, setPatients] = useState({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -35,24 +36,60 @@ const AppointmentsPage = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
 
-  const DOCTOR_ID = '69dda11899183b33e3e63c9f';
+  const [doctorId, setDoctorId] = useState('');
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-    fetchAppointments();
+    initializeDoctorSession();
   }, []);
 
   useEffect(() => {
     filterAppointments();
   }, [appointments, searchTerm, statusFilter, dateFilter]);
 
-  const fetchAppointments = async () => {
+  const initializeDoctorSession = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:8084/api/appointments/doctor/${DOCTOR_ID}`);
+      setError('');
+      const userData = localStorage.getItem('user');
+      const parsedUser = userData ? JSON.parse(userData) : null;
+      setUser(parsedUser);
+
+      const doctorsResponse = await fetch('http://localhost:8083/api/doctors');
+      if (!doctorsResponse.ok) {
+        throw new Error('Unable to load doctor profiles.');
+      }
+
+      const doctors = await doctorsResponse.json();
+      const normalizedName = parsedUser?.name?.replace(/^Dr\.?\s*/i, '').trim().toLowerCase();
+      const matchedDoctor = doctors.find((doctor) => {
+        const doctorEmail = doctor.email?.trim().toLowerCase();
+        const userEmail = parsedUser?.email?.trim().toLowerCase();
+        const doctorName = doctor.name?.trim().toLowerCase();
+
+        return (
+          (userEmail && doctorEmail && doctorEmail === userEmail) ||
+          (normalizedName && doctorName === normalizedName)
+        );
+      });
+
+      if (!matchedDoctor?.doctorId) {
+        throw new Error('Could not match the logged-in user to a doctor profile.');
+      }
+
+      setDoctorId(matchedDoctor.doctorId);
+      await fetchAppointments(matchedDoctor.doctorId);
+    } catch (sessionError) {
+      console.error('Error initializing doctor session:', sessionError);
+      setAppointments([]);
+      setFilteredAppointments([]);
+      setError(sessionError.message || 'Failed to load doctor appointments.');
+      setLoading(false);
+    }
+  };
+
+  const fetchAppointments = async (resolvedDoctorId) => {
+    try {
+      const response = await fetch(`http://localhost:8084/api/appointments/doctor/${resolvedDoctorId}`);
       if (response.ok) {
         const data = await response.json();
         setAppointments(data);
@@ -77,8 +114,9 @@ const AppointmentsPage = () => {
         
         setPatients(patientData);
       }
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
+    } catch (requestError) {
+      console.error('Error fetching appointments:', requestError);
+      setError('Failed to load appointment data for this doctor.');
     } finally {
       setLoading(false);
     }
@@ -296,10 +334,15 @@ const AppointmentsPage = () => {
             <div className="bg-white rounded-xl shadow-medical border border-gray-200 p-12 text-center">
               <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">No appointments found</h3>
-              <p className="text-gray-600">Try adjusting your search or filters</p>
+              <p className="text-gray-600">{error || 'Try adjusting your search or filters'}</p>
             </div>
           ) : (
             <div className="space-y-4">
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
               {filteredAppointments.map((appointment) => {
                 const patient = patients[appointment.patientId];
                 return (

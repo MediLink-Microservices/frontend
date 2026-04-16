@@ -1,20 +1,16 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/layout/Layout'
-
-// Auth pages
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import AdminRegisterPage from './pages/auth/AdminRegisterPage'
 import DoctorRegisterPage from './pages/auth/DoctorRegisterPage'
-
-// Dashboard pages
 import AdminDashboard from './pages/admin/AdminDashboard'
 import DoctorDashboard from './pages/doctor/DoctorDashboard'
 import PatientDashboard from './pages/patient/PatientDashboard'
-
-// Doctor common pages
+import MyAppointmentsPage from './pages/patient/MyAppointmentsPage'
+import PaymentCheckoutPage from './pages/patient/PaymentCheckoutPage'
+import BookAppointmentPage from './pages/patient/BookAppointmentPage'
 import AppointmentsPage from './pages/doctor/AppointmentsPage'
 import PatientsPage from './pages/doctor/PatientsPage'
 import TelemedicinePage from './pages/doctor/TelemedicinePage'
@@ -31,33 +27,30 @@ import ViewDoctors from './pages/doctor/ViewDoctors'
 import ViewSchedules from './pages/doctor/ViewSchedules'
 import PrescriptionWriting from './pages/doctor/PrescriptionWriting'
 import AvailabilitySchedulePage from './pages/doctor/AvailabilitySchedulePage'
-// import AllRegisteredDoctors from './components/AllRegisteredDoctors'
-
-// Patient pages
-import BookAppointmentPage from './pages/patient/BookAppointmentPage'
-
-// Protected route
-import ProtectedRoute from "./components/Admin/ProtectedRoute";
+import ProtectedRoute from './components/Admin/ProtectedRoute'
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/register/admin" element={<AdminRegisterPage />} />
         <Route path="/register/doctor" element={<DoctorRegisterPage />} />
 
-        {/* Layout routes */}
         <Route path="/" element={<Layout />}>
           <Route index element={<LoginPage />} />
-          
-          {/* Dashboard routes (unprotected - for legacy support if needed, or redirecting) */}
+          <Route path="login" element={<LoginPage />} />
+          <Route path="register" element={<RegisterPage />} />
+
+          <Route path="patient" element={<Navigate replace to="/patient/dashboard" />} />
           <Route path="patient/dashboard" element={<PatientDashboard />} />
+          <Route path="patient/book-appointment" element={<BookAppointmentPage />} />
+          <Route path="patient/appointments" element={<MyAppointmentsPage />} />
+          <Route path="patient/payment" element={<PaymentCheckoutPage />} />
+
+          <Route path="doctor" element={<Navigate replace to="/doctor/dashboard" />} />
           <Route path="doctor/dashboard" element={<DoctorDashboard />} />
-          
-          {/* Sub-pages */}
           <Route path="doctor/appointments" element={<AppointmentsPage />} />
           <Route path="doctor/patients" element={<PatientsPage />} />
           <Route path="doctor/telemedicine" element={<TelemedicinePage />} />
@@ -72,15 +65,15 @@ function App() {
           <Route path="doctor/add-schedule" element={<AddSchedule />} />
           <Route path="doctor/view-schedules" element={<ViewSchedules />} />
           <Route path="doctor/view-doctors-list" element={<ViewDoctors />} />
-          {/* <Route path="doctor/view-all-doctors" element={<AllRegisteredDoctors />} /> */}
           <Route path="doctor/prescription-writing" element={<PrescriptionWriting />} />
           <Route path="doctor/availability-schedule" element={<AvailabilitySchedulePage />} />
-          <Route path="patient/book-appointment" element={<BookAppointmentPage />} />
+
+          <Route path="admin" element={<AdminDashboard />} />
+          <Route path="admin/dashboard" element={<AdminDashboard />} />
         </Route>
 
-        {/* Protected dashboard routes */}
         <Route
-          path="/admin"
+          path="/admin-protected"
           element={
             <ProtectedRoute allowedRole="ADMIN">
               <AdminDashboard />
@@ -89,7 +82,7 @@ function App() {
         />
 
         <Route
-          path="/doctor"
+          path="/doctor-protected"
           element={
             <ProtectedRoute allowedRole="DOCTOR">
               <DoctorDashboard />
@@ -98,7 +91,7 @@ function App() {
         />
 
         <Route
-          path="/patient"
+          path="/patient-protected"
           element={
             <ProtectedRoute allowedRole="PATIENT">
               <PatientDashboard />

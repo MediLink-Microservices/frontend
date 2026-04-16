@@ -4,6 +4,7 @@ import AdminNavbar from "../../components/admin/AdminNavbar";
 
 // Pages
 import OverviewPage from "./OverviewPage";
+import AdminAppointmentsPage from "./AdminAppointmentsPage";
 import DoctorManagementPage from "./DoctorManagementPage";
 import UserManagementPage from "./UserManagementPage";
 
@@ -31,6 +32,7 @@ export default function AdminDashboard() {
         {/* Page Content */}
         <div style={s.content}>
           {activePage === "overview" && <OverviewPage onNavigate={(page) => setActivePage(page)} />}
+          {activePage === "appointments" && <AdminAppointmentsPage />}
           {activePage === "doctors" && <DoctorManagementPage />}
           {activePage === "users" && <UserManagementPage />}
           {activePage === "analytics" && <PlaceholderPage icon="📈" title="Platform Analytics" desc="Analytics and statistics coming soon." />}
