@@ -1,9 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+const resolveStoredUser = () => {
+  try {
+    const rawUser = localStorage.getItem('user');
+    return rawUser ? JSON.parse(rawUser) : null;
+  } catch {
+    return null;
+  }
+};
+
 const BookAppointmentPage = () => {
   const navigate = useNavigate();
+  const storedUser = resolveStoredUser();
   const [step, setStep] = useState(1); // 1: select specialty, 2: select doctor, 3: select schedule, 4: confirm
+  const [patientDetails, setPatientDetails] = useState({
+    patientId: storedUser?.userId || storedUser?.id || '',
+    patientName: storedUser?.name || '',
+  });
+  const [formError, setFormError] = useState('');
 
   // Step 1: Specialty selection
   const [specialties, setSpecialties] = useState([]);
@@ -53,6 +68,12 @@ const BookAppointmentPage = () => {
   };
 
   const handleSpecialtySelect = (specialty) => {
+    if (!patientDetails.patientId.trim()) {
+      setFormError('Enter the patient ID before starting the booking.');
+      return;
+    }
+
+    setFormError('');
     setSelectedSpecialty(specialty);
     fetchDoctorsBySpecialty(specialty);
   };
@@ -77,19 +98,19 @@ const BookAppointmentPage = () => {
 
   const handleDoctorSelect = (doctor) => {
     setSelectedDoctor(doctor);
-    fetchDoctorSchedules(doctor.id);
+    fetchDoctorSchedules(doctor.doctorId);
   };
 
   const fetchDoctorSchedules = async (doctorId) => {
     setLoadingSchedules(true);
     try {
-      const response = await fetch(`http://localhost:8083/api/schedules/doctor/69dda11899183b33e3e63c9f`);
+      const response = await fetch(`http://localhost:8083/api/schedules/doctor/${doctorId}`);
       if (response.ok) {
         const data = await response.json();
         setSchedules(data.filter(schedule => schedule.isAvailable));
         
         // Fetch doctor appointments for appointment number calculation
-        await fetchDoctorAppointments();
+        await fetchDoctorAppointments(doctorId);
         setStep(3);
       } else {
         console.error('Failed to fetch schedules');
@@ -101,9 +122,9 @@ const BookAppointmentPage = () => {
     }
   };
 
-  const fetchDoctorAppointments = async () => {
+  const fetchDoctorAppointments = async (doctorId) => {
     try {
-      const response = await fetch('http://localhost:8084/api/appointments/doctor/69dda11899183b33e3e63c9f');
+      const response = await fetch(`http://localhost:8084/api/appointments/doctor/${doctorId}`);
       if (response.ok) {
         const data = await response.json();
         setDoctorAppointments(data);
@@ -187,12 +208,12 @@ const BookAppointmentPage = () => {
     return hospital ? hospital.name : 'Unknown Hospital';
   };
 
-  const createTelemedicineSession = async (appointmentNumber, appointmentDate) => {
+  const createTelemedicineSession = async (appointmentDate) => {
     try {
       const telemedicineRequest = {
-        doctorId: '69dda11899183b33e3e63c9f',
-        patientId: '69d1248a5144a126417bf678',
-        patientName: 'Current Patient', // This would come from patient profile
+        doctorId: selectedDoctor.doctorId,
+        patientId: patientDetails.patientId.trim(),
+        patientName: patientDetails.patientName.trim() || 'Patient',
         doctorName: selectedDoctor.name,
         doctorSpecialty: selectedDoctor.specialty,
         consultationType: 'TELEMEDICINE',
@@ -240,14 +261,15 @@ const BookAppointmentPage = () => {
 
       // Calculate next appointment number
       const nextAppointmentNumber = getNextAppointmentNumber(appointmentDate);
+      const doctorHospital = getHospitalName(selectedSchedule.hospitalId);
 
       const appointmentRequest = {
-        patientId: '69d1248a5144a126417bf678', // Using the patient ID you provided
-        doctorId: '69dda11899183b33e3e63c9f', // Using the doctor ID you provided
+        patientId: patientDetails.patientId.trim(),
+        doctorId: selectedDoctor.doctorId,
         doctorName: selectedDoctor.name,
         doctorSpecialty: selectedDoctor.specialty,
-        doctorHospital: selectedDoctor.hospital || 'Hospital',
-        consultationFee: selectedDoctor.consultationFee || 50.0,
+        doctorHospital: doctorHospital,
+        consultationFee: selectedDoctor.fee || 50.0,
         consultationType: appointmentData.consultationType, // Add consultation type
         appointmentDateTime: appointmentDateTime,
         notes: appointmentData.notes,
@@ -264,10 +286,11 @@ const BookAppointmentPage = () => {
 
       if (response.ok) {
         const createdAppointment = await response.json();
+        sessionStorage.setItem('latestAppointment', JSON.stringify(createdAppointment));
         
         // If consultation type is telemedicine, create telemedicine session
         if (appointmentData.consultationType === 'TELEMEDICINE') {
-          await createTelemedicineSession(nextAppointmentNumber, appointmentDate);
+          await createTelemedicineSession(appointmentDate);
         }
         
         // Show appointment number to user
@@ -283,6 +306,14 @@ const BookAppointmentPage = () => {
     } finally {
       setBookingLoading(false);
     }
+  };
+
+  const handlePatientDetailChange = (event) => {
+    const { name, value } = event.target;
+    setPatientDetails(prev => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const getConsultationTypeLabel = (type) => {
@@ -366,6 +397,39 @@ const BookAppointmentPage = () => {
         {step === 1 && (
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Medical Specialty</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Patient ID
+                </label>
+                <input
+                  type="text"
+                  name="patientId"
+                  value={patientDetails.patientId}
+                  onChange={handlePatientDetailChange}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Enter the patient ID from patient-service"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Patient Name
+                </label>
+                <input
+                  type="text"
+                  name="patientName"
+                  value={patientDetails.patientName}
+                  onChange={handlePatientDetailChange}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Optional display name for telemedicine"
+                />
+              </div>
+            </div>
+            {formError && (
+              <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
+                {formError}
+              </div>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {specialties.map((specialty) => (
                 <button
@@ -405,7 +469,7 @@ const BookAppointmentPage = () => {
               <div className="space-y-4">
                 {doctors.map((doctor) => (
                   <div
-                    key={doctor.id}
+                    key={doctor.doctorId}
                     className="border border-gray-300 rounded-lg p-4 hover:border-blue-500 cursor-pointer"
                     onClick={() => handleDoctorSelect(doctor)}
                   >
@@ -413,11 +477,13 @@ const BookAppointmentPage = () => {
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900">Dr. {doctor.name}</h3>
                         <p className="text-gray-600">{doctor.specialty}</p>
-                        <p className="text-gray-600">{doctor.hospital}</p>
+                        <p className="text-gray-600">
+                          {doctor.hospitalIds?.length ? `${doctor.hospitalIds.length} linked hospital(s)` : 'Hospital not assigned'}
+                        </p>
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-semibold text-blue-600">
-                          ${doctor.consultationFee || 50}
+                          Rs. {doctor.fee || 50}
                         </p>
                         <p className="text-sm text-gray-600">Consultation Fee</p>
                       </div>
@@ -518,14 +584,14 @@ const BookAppointmentPage = () => {
                 <h3 className="font-semibold text-gray-900">Doctor Details</h3>
                 <p className="text-gray-600">Dr. {selectedDoctor?.name}</p>
                 <p className="text-gray-600">{selectedDoctor?.specialty}</p>
-                <p className="text-gray-600">{selectedDoctor?.hospital}</p>
+                <p className="text-gray-600">{getHospitalName(selectedSchedule?.hospitalId)}</p>
               </div>
 
               <div className="border-b pb-4">
                 <h3 className="font-semibold text-gray-900">Schedule Details</h3>
                 <p className="text-gray-600">{selectedSchedule?.day}</p>
                 <p className="text-gray-600">{selectedSchedule?.startTime} - {selectedSchedule?.endTime}</p>
-                <p className="text-gray-600">Consultation Fee: ${selectedDoctor?.consultationFee || 50}</p>
+                <p className="text-gray-600">Consultation Fee: Rs. {selectedDoctor?.fee || 50}</p>
                 <div className="mt-2 p-3 bg-green-50 rounded-md">
                   <p className="text-sm text-green-800">
                     <strong>Your Appointment Number:</strong> {getNextAppointmentNumber(getScheduleDate(new Date(), selectedSchedule?.day))}
