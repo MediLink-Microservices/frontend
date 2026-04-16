@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE_URL = 'http://localhost:8083/api'
+const API_BASE_URL = 'http://localhost:8081'
 
 // Create axios instance
 const api = axios.create({
@@ -44,6 +44,14 @@ export const authAPI = {
   register: (userData) => api.post('/auth/register', userData),
   validateToken: (token) => api.get('/auth/validate', { headers: { Authorization: `Bearer ${token}` } }),
   refreshToken: () => api.post('/auth/refresh'),
+  logout: () => api.post('/auth/logout'),
+
+  // Admin-specific auth endpoints (served by Auth-Service at /auth/admin/*)
+  adminRegister: (userData) => api.post('/auth/admin/register', userData),
+  adminStats: () => api.get('/auth/admin/stats'),
+  adminUsers: (role = 'ALL') => api.get(`/auth/admin/users?role=${role}`),
+  approveUser: (userId, approved) => api.put(`/auth/admin/users/${userId}/approve?approved=${approved}`),
+  updateUserDetails: (userId, updates) => api.put(`/auth/admin/users/${userId}`, updates),
 }
 
 // Doctor API

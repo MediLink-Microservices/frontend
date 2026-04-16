@@ -20,6 +20,7 @@ export default function UserManagementPage() {
   const [modalRole, setModalRole] = useState("ADMIN");
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [editingUser, setEditingUser] = useState(null);
 
   useEffect(() => {
     async function loadUsers() {
@@ -30,7 +31,6 @@ export default function UserManagementPage() {
         if (activeTab === "Patients") roleFilter = "PATIENT";
         
         const res = await authAPI.adminUsers(roleFilter);
-        // Exclude DOCTORs from this page since they have their own page
         const filtered = roleFilter === "ALL" 
           ? res.data.data.users.filter(u => u.role !== "DOCTOR")
           : res.data.data.users;
@@ -75,16 +75,13 @@ export default function UserManagementPage() {
         ))}
       </div>
 
-      {/* Table / Empty state */}
+      {/* Table */}
       {loading ? (
-        <div style={s.empty}>
-          <Spinner />
-        </div>
+        <div style={s.empty}><Spinner /></div>
       ) : users.length === 0 ? (
         <div style={s.empty}>
           <span style={{ fontSize: "52px" }}>👥</span>
           <p style={s.emptyTitle}>No users found</p>
-          <p style={s.emptySub}>Add an administrator or patient to get started.</p>
         </div>
       ) : (
         <div style={s.tableContainer}>
@@ -95,6 +92,7 @@ export default function UserManagementPage() {
                 <th style={s.th}>Email</th>
                 <th style={s.th}>Role</th>
                 <th style={s.th}>Joined</th>
+                <th style={s.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -103,13 +101,20 @@ export default function UserManagementPage() {
                   <td style={s.td}><strong>{u.name}</strong></td>
                   <td style={s.td}>{u.email}</td>
                   <td style={s.td}>
-                    {u.role === "ADMIN" ? (
-                      <span style={{...s.badge, background:"rgba(139,92,246,0.1)", color:"#c4b5fd"}}>🛡️ Admin</span>
-                    ) : (
-                      <span style={{...s.badge, background:"rgba(14,165,233,0.1)", color:"#7dd3fc"}}>🧑‍⚕️ Patient</span>
-                    )}
+                    <span style={{
+                      ...s.badge, 
+                      background: u.role === "ADMIN" ? "rgba(139,92,246,0.1)" : "rgba(14,165,233,0.1)",
+                      color: u.role === "ADMIN" ? "#c4b5fd" : "#7dd3fc"
+                    }}>
+                      {u.role === "ADMIN" ? "🛡️ Admin" : "🧑‍⚕️ Patient"}
+                    </span>
                   </td>
                   <td style={s.td}>{new Date(u.createdAt || Date.now()).toLocaleDateString()}</td>
+                  <td style={s.td}>
+                    <button style={s.editBtn} onClick={() => setEditingUser(u)}>
+                      ✏️ Edit
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -117,14 +122,24 @@ export default function UserManagementPage() {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Add Modal */}
       {showModal && (
         <AddUserModal
           role={modalRole}
           onClose={() => setShowModal(false)}
-          onSuccess={(user) => {
-            setUsers(prev => [user, ...prev]);
-            setShowModal(false);
+          onSuccess={(user) => { setUsers(prev => [user, ...prev]); setShowModal(false); }}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSuccess={() => {
+            setEditingUser(null);
+            // Reload users
+            setActiveTab(prev => prev === activeTab ? activeTab : activeTab);
           }}
         />
       )}
@@ -132,36 +147,19 @@ export default function UserManagementPage() {
   );
 }
 
-// ── Add User Modal ───────────────────────────────────────────────────────────
-function AddUserModal({ role, onClose, onSuccess }) {
-  const isAdmin = role === "ADMIN";
-  const [form, setForm] = useState({ name: "", email: "", password: "", phoneNumber: "" });
+// ── Modals ───────────────────────────────────────────────────────────────────
+
+function EditUserModal({ user, onClose, onSuccess }) {
+  const [form, setForm] = useState({ name: user.name, phoneNumber: user.phoneNumber || "", role: user.role });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [showPwd, setShowPwd] = useState(false);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm(c => ({ ...c, [name]: value }));
-    if (error) setError("");
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(""); setSuccess("");
-
-    if (!PASSWORD_REGEX.test(form.password)) {
-      setError("Password must be 8+ chars with uppercase, lowercase, number & special char (@#$%^&+=)");
-      return;
-    }
     setLoading(true);
     try {
-      const payload = { name: form.name, email: form.email, password: form.password, role };
-      if (form.phoneNumber.trim()) payload.phoneNumber = form.phoneNumber;
-      const res = await authAPI.adminRegister(payload);
-      setSuccess(`${isAdmin ? "Admin" : "Patient"} account for ${form.name} created and is immediately active!`);
-      setTimeout(() => onSuccess({ ...payload }), 1200);
+      await authAPI.updateUserDetails(user.id, form);
+      onSuccess();
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -169,112 +167,110 @@ function AddUserModal({ role, onClose, onSuccess }) {
     }
   };
 
-  const accentColor = isAdmin ? "#8b5cf6" : "#0ea5e9";
-  const accentBg = isAdmin ? "rgba(139,92,246,0.1)" : "rgba(14,165,233,0.1)";
+  return (
+    <div style={s.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={s.modal}>
+        <div style={s.modalTop}>
+          <h3 style={s.modalTitle}>Edit User Details</h3>
+          <button style={s.closeBtn} onClick={onClose}>✕</button>
+        </div>
+        <form onSubmit={handleSubmit} style={s.form}>
+          <div style={s.fieldGroup}>
+            <label style={s.label}>Email (Read-only)</label>
+            <input style={{...s.input, opacity: 0.6}} value={user.email} readOnly />
+          </div>
+          <div style={s.fieldGroup}>
+            <label style={s.label}>Full Name</label>
+            <input style={s.input} value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+          </div>
+          <div style={s.fieldGroup}>
+            <label style={s.label}>Phone Number</label>
+            <input style={s.input} value={form.phoneNumber} onChange={e => setForm({...form, phoneNumber: e.target.value})} />
+          </div>
+          <div style={s.fieldGroup}>
+            <label style={s.label}>Role</label>
+            <select style={s.input} value={form.role} onChange={e => setForm({...form, role: e.target.value})}>
+              <option value="ADMIN">ADMIN</option>
+              <option value="PATIENT">PATIENT</option>
+            </select>
+          </div>
+          {error && <div style={s.errorBox}>{error}</div>}
+          <div style={s.footer}>
+            <button type="button" style={s.cancelBtn} onClick={onClose}>Cancel</button>
+            <button type="submit" style={s.primaryBtn} disabled={loading}>
+              {loading ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function AddUserModal({ role, onClose, onSuccess }) {
+  const [form, setForm] = useState({ name: "", email: "", password: "", phoneNumber: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!PASSWORD_REGEX.test(form.password)) {
+      setError("Password too weak");
+      return;
+    }
+    setLoading(true);
+    try {
+      await authAPI.adminRegister({ ...form, role });
+      onSuccess({ ...form, role, createdAt: new Date().toISOString() });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div style={s.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={s.modal}>
         <div style={s.modalTop}>
-          <div>
-            <div style={{ ...s.roleBadge, background: accentBg, color: accentColor }}>
-              {isAdmin ? "🛡️ Administrator" : "🧑‍⚕️ Patient"}
-            </div>
-            <h3 style={s.modalTitle}>{isAdmin ? "Add New Admin" : "Add New Patient"}</h3>
-            <p style={s.modalSub}>Account will be <strong style={{color:"#10b981"}}>immediately active</strong>.</p>
-          </div>
+          <h3 style={s.modalTitle}>Add New {role}</h3>
           <button style={s.closeBtn} onClick={onClose}>✕</button>
         </div>
-
         <form onSubmit={handleSubmit} style={s.form}>
           <div style={s.grid2}>
             <div style={s.fieldGroup}>
-              <label style={s.label} htmlFor="um-name">Full Name</label>
-              <div style={s.inputWrap}>
-                <span style={s.inputIcon}>👤</span>
-                <input id="um-name" style={s.input} type="text" name="name" value={form.name}
-                  onChange={handleChange} placeholder="Full name" required minLength={2}/>
-              </div>
+              <label style={s.label}>Name</label>
+              <input style={s.input} value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
             </div>
             <div style={s.fieldGroup}>
-              <label style={s.label} htmlFor="um-phone">
-                Phone <span style={s.optional}>optional</span>
-              </label>
-              <div style={s.inputWrap}>
-                <span style={s.inputIcon}>📞</span>
-                <input id="um-phone" style={s.input} type="tel" name="phoneNumber" value={form.phoneNumber}
-                  onChange={handleChange} placeholder="0771234567"/>
-              </div>
+              <label style={s.label}>Phone</label>
+              <input style={s.input} value={form.phoneNumber} onChange={e => setForm({...form, phoneNumber: e.target.value})} />
             </div>
           </div>
-
           <div style={s.fieldGroup}>
-            <label style={s.label} htmlFor="um-email">Email Address</label>
-            <div style={s.inputWrap}>
-              <span style={s.inputIcon}>✉️</span>
-              <input id="um-email" style={s.input} type="email" name="email" value={form.email}
-                onChange={handleChange} placeholder="user@medilink.com" required/>
-            </div>
+            <label style={s.label}>Email</label>
+            <input style={s.input} type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} required />
           </div>
-
           <div style={s.fieldGroup}>
-            <label style={s.label} htmlFor="um-pwd">Password</label>
-            <div style={s.inputWrap}>
-              <span style={s.inputIcon}>🔒</span>
-              <input id="um-pwd" style={s.input} type={showPwd?"text":"password"} name="password"
-                value={form.password} onChange={handleChange}
-                placeholder="Min 8 chars, A-Z, 0-9, @#$%^&+=" required/>
-              <button type="button" style={s.eyeBtn} onClick={() => setShowPwd(v=>!v)} tabIndex={-1}>
-                {showPwd ? "🙈" : "👁️"}
-              </button>
+            <label style={s.label}>Password</label>
+            <div style={{position:"relative"}}>
+              <input style={s.input} type={showPwd?"text":"password"} value={form.password} onChange={e => setForm({...form, password: e.target.value})} required />
+              <button type="button" style={s.eyeBtn} onClick={() => setShowPwd(!showPwd)}>{showPwd?"🙈":"👁️"}</button>
             </div>
-            <p style={s.hint}>Must include uppercase, lowercase, number & special char (@#$%^&+=)</p>
           </div>
-
-          <div style={{ ...s.infoBanner, background: accentBg, borderColor: accentColor + "33", color: accentColor }}>
-            ✅ Created by admin — account is <strong>immediately active</strong>.
-          </div>
-
-          {error   && <Alert type="error">{error}</Alert>}
-          {success && <Alert type="success">{success}</Alert>}
-
+          {error && <div style={s.errorBox}>{error}</div>}
           <div style={s.footer}>
-            <button type="button" style={s.cancelBtn} onClick={onClose} disabled={loading}>Cancel</button>
-            <button type="submit"
-              style={{ ...s.submitBtn, background: `linear-gradient(135deg, ${accentColor}, #0ea5e9)`, opacity: loading ? 0.75 : 1 }}
-              disabled={loading} id="um-submit">
-              {loading && <Spinner/>}
-              {loading ? "Creating..." : `Create ${isAdmin ? "Admin" : "Patient"}`}
-            </button>
+            <button type="button" style={s.cancelBtn} onClick={onClose}>Cancel</button>
+            <button type="submit" style={s.primaryBtn} disabled={loading}>Create Account</button>
           </div>
         </form>
       </div>
-      <style>{`
-        input:focus,select:focus{outline:none;border-color:#6366f1!important;box-shadow:0 0 0 3px rgba(99,102,241,0.15)}
-        @keyframes spin{to{transform:rotate(360deg)}}
-      `}</style>
     </div>
   );
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function Alert({ type, children }) {
-  const isErr = type === "error";
-  return (
-    <div style={{
-      display:"flex", gap:"8px", padding:"11px 14px", borderRadius:"10px",
-      background: isErr ? "rgba(239,68,68,0.1)" : "rgba(16,185,129,0.1)",
-      border: `1px solid ${isErr ? "rgba(239,68,68,0.3)" : "rgba(16,185,129,0.3)"}`,
-      color: isErr ? "#fca5a5" : "#6ee7b7", fontSize:"12px",
-    }}>
-      <span>{isErr ? "⚠️" : "✅"}</span><span>{children}</span>
-    </div>
-  );
-}
-
-function Spinner() {
-  return <span style={{ width:"14px",height:"14px",border:"2px solid rgba(255,255,255,0.3)",borderTopColor:"white",borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite" }}/>;
-}
+const Spinner = () => <div style={{width:"20px",height:"20px",border:"2px solid #334155",borderTopColor:"#6366f1",borderRadius:"50%",animation:"spin 0.6s linear infinite"}}/>;
 
 const s = {
   page: { display:"flex", flexDirection:"column", gap:"20px" },
@@ -282,41 +278,31 @@ const s = {
   heading: { color:"#f1f5f9", fontSize:"18px", fontWeight:"700", margin:0 },
   sub: { color:"#64748b", fontSize:"12px", margin:"3px 0 0 0" },
   btnGroup: { display:"flex", gap:"10px" },
-  primaryBtn: { padding:"10px 18px", background:"linear-gradient(135deg,#6366f1,#0ea5e9)", border:"none", borderRadius:"10px", color:"white", fontSize:"13px", fontWeight:"600", cursor:"pointer", fontFamily:"'Poppins',sans-serif" },
-  secondaryBtn: { padding:"10px 18px", background:"rgba(139,92,246,0.15)", border:"1px solid rgba(139,92,246,0.3)", borderRadius:"10px", color:"#c4b5fd", fontSize:"13px", fontWeight:"600", cursor:"pointer", fontFamily:"'Poppins',sans-serif" },
+  primaryBtn: { padding:"10px 18px", background:"linear-gradient(135deg,#6366f1,#0ea5e9)", border:"none", borderRadius:"10px", color:"white", fontSize:"13px", fontWeight:"600", cursor:"pointer" },
+  secondaryBtn: { padding:"10px 18px", background:"rgba(139,92,246,0.15)", border:"1px solid rgba(139,92,246,0.3)", borderRadius:"10px", color:"#c4b5fd", fontSize:"13px", fontWeight:"600", cursor:"pointer" },
   tabs: { display:"flex", gap:"4px", background:"#1e293b", padding:"4px", borderRadius:"10px", width:"fit-content" },
-  tab: { padding:"7px 16px", borderRadius:"7px", background:"none", border:"none", color:"#64748b", fontSize:"12px", fontWeight:"500", cursor:"pointer", fontFamily:"'Poppins',sans-serif", transition:"all 0.15s" },
+  tab: { padding:"7px 16px", borderRadius:"7px", background:"none", border:"none", color:"#64748b", fontSize:"12px", fontWeight:"500", cursor:"pointer" },
   tabActive: { background:"#334155", color:"#f1f5f9" },
-  empty: { display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"80px 20px",gap:"12px" },
-  emptyTitle: { color:"#f1f5f9",fontSize:"16px",fontWeight:"600",margin:0 },
-  emptySub: { color:"#64748b",fontSize:"13px",margin:0 },
-  // Table
   tableContainer: { background:"#1e293b", border:"1px solid #334155", borderRadius:"12px", overflow:"hidden" },
-  tableDom: { width:"100%", borderCollapse:"collapse", textAlign:"left", fontSize:"13px", fontFamily:"'Poppins',sans-serif" },
+  tableDom: { width:"100%", borderCollapse:"collapse", textAlign:"left", fontSize:"13px" },
   th: { padding:"14px 20px", color:"#94a3b8", fontWeight:"600", borderBottom:"1px solid #334155", background:"#0f172a" },
   tr: { borderBottom:"1px solid #334155" },
   td: { padding:"14px 20px", color:"#f1f5f9" },
   badge: { padding:"4px 10px", borderRadius:"6px", fontSize:"11px", fontWeight:"600", display:"inline-block" },
-  // Modal
-  overlay: { position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:"20px" },
-  modal: { background:"#1e293b",borderRadius:"20px",width:"100%",maxWidth:"500px",border:"1px solid #334155",boxShadow:"0 40px 80px rgba(0,0,0,0.5)",maxHeight:"90vh",overflowY:"auto" },
-  modalTop: { display:"flex",alignItems:"flex-start",justifyContent:"space-between",padding:"22px 22px 0 22px" },
-  roleBadge: { display:"inline-flex",alignItems:"center",gap:"6px",borderRadius:"20px",padding:"4px 12px",fontSize:"11px",fontWeight:"600",marginBottom:"8px" },
-  modalTitle: { color:"#f1f5f9",fontSize:"18px",fontWeight:"700",margin:"0 0 4px 0" },
-  modalSub: { color:"#64748b",fontSize:"12px",margin:0 },
-  closeBtn: { background:"#0f172a",border:"1px solid #334155",color:"#94a3b8",width:"30px",height:"30px",borderRadius:"8px",cursor:"pointer",fontSize:"13px",flexShrink:0 },
-  form: { padding:"18px 22px 22px",display:"flex",flexDirection:"column",gap:"14px" },
-  grid2: { display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px" },
-  fieldGroup: { display:"flex",flexDirection:"column",gap:"6px" },
-  label: { color:"#94a3b8",fontSize:"12px",fontWeight:"500",display:"flex",alignItems:"center",gap:"6px" },
-  optional: { color:"#475569",fontSize:"10px",background:"#0f172a",padding:"1px 5px",borderRadius:"3px" },
-  inputWrap: { position:"relative",display:"flex",alignItems:"center" },
-  inputIcon: { position:"absolute",left:"11px",fontSize:"14px",pointerEvents:"none" },
-  input: { width:"100%",padding:"11px 12px 11px 34px",background:"#0f172a",border:"1.5px solid #334155",borderRadius:"10px",color:"#f1f5f9",fontSize:"13px",fontFamily:"'Poppins',sans-serif",boxSizing:"border-box" },
-  eyeBtn: { position:"absolute",right:"10px",background:"none",border:"none",cursor:"pointer",fontSize:"14px" },
-  hint: { color:"#475569",fontSize:"11px",margin:"2px 0 0 0" },
-  infoBanner: { borderRadius:"10px",padding:"11px 14px",fontSize:"12px",border:"1px solid" },
-  footer: { display:"flex",gap:"10px",justifyContent:"flex-end" },
-  cancelBtn: { padding:"10px 18px",background:"#0f172a",border:"1.5px solid #334155",borderRadius:"10px",color:"#94a3b8",fontSize:"13px",fontWeight:"500",cursor:"pointer",fontFamily:"'Poppins',sans-serif" },
-  submitBtn: { display:"flex",alignItems:"center",gap:"8px",padding:"10px 22px",border:"none",borderRadius:"10px",color:"white",fontSize:"13px",fontWeight:"600",cursor:"pointer",fontFamily:"'Poppins',sans-serif" },
+  editBtn: { background:"rgba(14,165,233,0.1)", border:"1px solid rgba(14,165,233,0.2)", color:"#0ea5e9", padding:"4px 10px", borderRadius:"6px", cursor:"pointer", fontSize:"11px" },
+  overlay: { position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100 },
+  modal: { background:"#1e293b", borderRadius:"20px", width:"400px", border:"1px solid #334155", padding:"20px" },
+  modalTop: { display:"flex", justifyContent:"space-between", marginBottom:"20px" },
+  modalTitle: { color:"#f1f5f9", margin:0, fontSize:"18px" },
+  closeBtn: { background:"none", border:"none", color:"#64748b", fontSize:"18px", cursor:"pointer" },
+  form: { display:"flex", flexDirection:"column", gap:"15px" },
+  fieldGroup: { display:"flex", flexDirection:"column", gap:"5px" },
+  label: { color:"#94a3b8", fontSize:"12px" },
+  input: { background:"#0f172a", border:"1px solid #334155", borderRadius:"8px", color:"#f1f5f9", padding:"10px", fontSize:"13px" },
+  grid2: { display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" },
+  eyeBtn: { position:"absolute", right:"10px", top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer" },
+  errorBox: { color:"#ef4444", fontSize:"12px" },
+  footer: { display:"flex", justifyContent:"flex-end", gap:"10px", marginTop:"10px" },
+  cancelBtn: { background:"none", border:"1px solid #334155", color:"#94a3b8", padding:"8px 15px", borderRadius:"8px", cursor:"pointer" },
+  empty: { padding:"40px", textAlign:"center", color:"#64748b" }
 };
