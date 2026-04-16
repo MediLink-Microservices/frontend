@@ -81,7 +81,22 @@ export default function DoctorManagementPage() {
                     {doc.isApproved ? (
                       <span style={{...s.badge, background:"rgba(16,185,129,0.1)", color:"#10b981"}}>Active</span>
                     ) : (
-                      <span style={{...s.badge, background:"rgba(245,158,11,0.1)", color:"#f59e0b"}}>Pending</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <span style={{...s.badge, background:"rgba(245,158,11,0.1)", color:"#f59e0b"}}>Pending</span>
+                        <button
+                          style={s.approveBtn}
+                          onClick={async () => {
+                            try {
+                              await authAPI.approveUser(doc.id, true);
+                              setDoctors(prev => prev.map(d => d.id === doc.id ? { ...d, isApproved: true } : d));
+                            } catch (err) {
+                              alert("Failed to approve: " + getErrorMessage(err));
+                            }
+                          }}
+                        >
+                          Approve
+                        </button>
+                      </div>
                     )}
                   </td>
                   <td style={s.td}>{new Date(doc.createdAt || Date.now()).toLocaleDateString()}</td>
@@ -279,6 +294,13 @@ const s = {
     padding:"10px 20px", background:"linear-gradient(135deg,#6366f1,#0ea5e9)",
     border:"none", borderRadius:"10px", color:"white", fontSize:"13px",
     fontWeight:"600", cursor:"pointer", fontFamily:"'Poppins',sans-serif",
+  },
+  approveBtn: {
+    padding: "4px 10px", background: "rgba(16,185,129,0.15)",
+    border: "1px solid rgba(16,185,129,0.3)", borderRadius: "6px",
+    color: "#10b981", fontSize: "11px", fontWeight: "600",
+    cursor: "pointer", fontFamily: "'Poppins', sans-serif",
+    transition: "all 0.15s",
   },
   empty: { display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"80px 20px",gap:"12px" },
   emptyTitle: { color:"#f1f5f9",fontSize:"16px",fontWeight:"600",margin:0 },

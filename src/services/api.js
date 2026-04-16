@@ -49,8 +49,11 @@ export const authAPI = {
   adminRegister: (userData) => authClient.post('/auth/admin/register', userData),
   validateToken: (token) => authClient.get('/auth/validate', { headers: { Authorization: `Bearer ${token}` } }),
   refreshToken: (refreshToken) => authClient.post('/auth/refresh', null, { params: { refreshToken } }),
+  logout: () => authClient.post('/auth/logout'),
   adminStats: () => authClient.get('/auth/admin/stats'),
   adminUsers: (role = 'ALL') => authClient.get('/auth/admin/users', { params: { role } }),
+  approveUser: (userId, approved) => authClient.put(`/auth/admin/users/${userId}/approve`, null, { params: { approved } }),
+  updateUserDetails: (userId, updates) => authClient.put(`/auth/admin/users/${userId}`, updates),
 }
 
 export const doctorAPI = {
