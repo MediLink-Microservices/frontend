@@ -66,6 +66,9 @@ export const doctorAPI = {
 
 export const patientAPI = {
   getPatientProfile: (id) => patientClient.get(`/patient/${id}`),
+  getPatientProfileByAuthUserId: (authUserId) => patientClient.get(`/patient/by-auth-user/${authUserId}`),
+  getAllPatients: () => patientClient.get('/patient'),
+  createOrUpdatePatientProfile: (data) => patientClient.post('/patient/profile', data),
   getPatientAppointments: (id) => appointmentClient.get(`/appointments/patient/${id}`),
 }
 

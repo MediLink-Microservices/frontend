@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { authAPI } from "../../services/api";
+import { authAPI, patientAPI } from "../../services/api";
 
 // Backend returns: { status, message, errorCode, details: { fieldName: "error msg" } }
 function getErrorMessage(error) {
@@ -19,6 +19,13 @@ const ROLES = [
   { value: "PATIENT", label: "Patient", icon: "🧑‍⚕️", desc: "Book appointments & manage health" },
 ];
 
+function splitName(name = "") {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+
 export default function RegisterPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
@@ -26,6 +33,7 @@ export default function RegisterPage() {
     email: "",
     password: "",
     phoneNumber: "",
+    address: "",
     role: "PATIENT",
   });
   const [error, setError] = useState("");
@@ -80,6 +88,23 @@ export default function RegisterPage() {
       if (!payload.phoneNumber.trim()) delete payload.phoneNumber;
 
       const res = await authAPI.register(payload);
+      const registeredUserId = res.data?.data?.userId;
+
+      if (form.role === "PATIENT" && registeredUserId) {
+        const { firstName, lastName } = splitName(form.name);
+        await patientAPI.createOrUpdatePatientProfile({
+          authUserId: registeredUserId,
+          NIC: "",
+          firstName,
+          lastName,
+          email: form.email,
+          phone: form.phoneNumber || "",
+          address: form.address || "",
+          dateOfBirth: "",
+          medicalReports: [],
+        });
+      }
+
       setSuccess(res.data?.message || "Account created successfully! Redirecting to login...");
       setTimeout(() => navigate("/login"), 1800);
     } catch (err) {
@@ -252,6 +277,30 @@ export default function RegisterPage() {
                       onChange={handleChange}
                       placeholder="0771234567"
                       autoComplete="tel"
+                    />
+                  </div>
+                </div>
+
+                <div style={styles.fieldGroup}>
+                  <label style={styles.label} htmlFor="reg-address">
+                    Address <span style={styles.optionalBadge}>optional</span>
+                  </label>
+                  <div style={styles.inputWrapper}>
+                    <span style={styles.inputIcon}>
+                      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M12 21s-6-4.35-6-10a6 6 0 1 1 12 0c0 5.65-6 10-6 10z" />
+                        <circle cx="12" cy="11" r="2.5" />
+                      </svg>
+                    </span>
+                    <input
+                      id="reg-address"
+                      style={styles.input}
+                      type="text"
+                      name="address"
+                      value={form.address}
+                      onChange={handleChange}
+                      placeholder="456 Elm St, Cityville"
+                      autoComplete="street-address"
                     />
                   </div>
                 </div>

@@ -3,11 +3,17 @@ import {
   ArrowRight,
   BadgeCheck,
   CalendarDays,
+  ChevronDown,
   CheckCircle2,
   CreditCard,
   HeartPulse,
   Hospital,
+  IdCard,
   LoaderCircle,
+  LogOut,
+  Mail,
+  MapPin,
+  Phone,
   Search,
   ShieldCheck,
   Stethoscope,
@@ -15,6 +21,7 @@ import {
   Wallet,
   XCircle
 } from 'lucide-react';
+import { patientAPI } from '../../services/api';
 
 const resolveStoredUser = () => {
   try {
@@ -44,9 +51,10 @@ const getPatientInitials = (name = '') =>
 
 const BookAppointmentPage = () => {
   const storedUser = resolveStoredUser();
+  const [showPatientProfile, setShowPatientProfile] = useState(false);
   const [step, setStep] = useState(1); // 1: select specialty, 2: select doctor, 3: select schedule, 4: confirm
   const [patientDetails, setPatientDetails] = useState({
-    patientId: storedUser?.userId || storedUser?.id || '',
+    patientId: '',
     patientName: storedUser?.name || '',
   });
   const [patientProfile, setPatientProfile] = useState(null);
@@ -123,9 +131,9 @@ const BookAppointmentPage = () => {
   }, []);
 
   useEffect(() => {
-    const patientId = storedUser?.userId || storedUser?.id;
+    const authUserId = storedUser?.userId || storedUser?.id;
 
-    if (!patientId) {
+    if (!authUserId) {
       setPatientLoading(false);
       return;
     }
@@ -135,24 +143,19 @@ const BookAppointmentPage = () => {
       setPatientLookupError('');
 
       try {
-        const response = await fetch(`http://localhost:8086/api/patient/${patientId}`);
-
-        if (!response.ok) {
-          throw new Error('Unable to load patient profile from patient-service.');
-        }
-
-        const profile = await response.json();
+        const response = await patientAPI.getPatientProfileByAuthUserId(authUserId);
+        const profile = response.data;
         setPatientProfile(profile);
         setPatientDetails((prev) => ({
           ...prev,
-          patientId,
+          patientId: profile.id,
           patientName: buildPatientName(profile, storedUser?.name || prev.patientName),
         }));
       } catch (error) {
-        setPatientLookupError(error.message || 'Unable to load patient information right now.');
+        setPatientLookupError('No patient profile is linked to this login yet. Please complete patient registration/profile linking first.');
         setPatientDetails((prev) => ({
           ...prev,
-          patientId,
+          patientId: '',
           patientName: storedUser?.name || prev.patientName,
         }));
       } finally {
@@ -334,7 +337,14 @@ const BookAppointmentPage = () => {
 
   const patientDisplayName = patientDetails.patientName || storedUser?.name || 'Patient';
   const patientInitials = useMemo(() => getPatientInitials(patientDisplayName), [patientDisplayName]);
-  const hasLinkedPatient = Boolean(storedUser?.userId || storedUser?.id);
+  const hasLinkedPatient = Boolean(patientDetails.patientId);
+
+  const handlePatientLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    sessionStorage.removeItem('latestAppointment');
+    window.location.href = '/login';
+  };
 
   const handlePaymentChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -577,6 +587,103 @@ const BookAppointmentPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-4 flex justify-end">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowPatientProfile((prev) => !prev)}
+              className="flex items-center gap-3 rounded-2xl border border-white/80 bg-white/90 px-4 py-3 text-left shadow-medical backdrop-blur-sm transition hover:shadow-medical-lg"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-500 text-sm font-bold text-white shadow-medical">
+                {patientInitials}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-medilink-dark">{patientDisplayName}</p>
+                <p className="truncate text-xs text-gray-500">
+                  {patientProfile?.email || storedUser?.email || 'Patient profile'}
+                </p>
+              </div>
+              <ChevronDown className="h-4 w-4 text-gray-400" />
+            </button>
+
+            {showPatientProfile && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close patient profile"
+                  className="fixed inset-0 z-10 cursor-default bg-transparent"
+                  onClick={() => setShowPatientProfile(false)}
+                />
+                <div className="absolute right-0 z-20 mt-3 w-[320px] rounded-3xl border border-white/80 bg-white/95 p-5 shadow-medical-lg backdrop-blur-sm">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-500 text-lg font-bold text-white shadow-medical">
+                      {patientInitials}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-medilink-primary">Patient Profile</p>
+                      <h2 className="mt-2 break-words text-xl font-bold text-medilink-dark">{patientDisplayName}</h2>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {hasLinkedPatient
+                          ? 'Your profile is linked to this login session.'
+                          : 'No linked patient profile was found yet.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    <div className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <IdCard className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Patient ID</p>
+                        <p className="mt-1 break-all text-sm font-semibold text-medilink-dark">{patientDetails.patientId || 'Not linked'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <Mail className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Email</p>
+                        <p className="mt-1 break-all text-sm font-semibold text-medilink-dark">{patientProfile?.email || storedUser?.email || 'Not available'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <Phone className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Phone</p>
+                        <p className="mt-1 break-words text-sm font-semibold text-medilink-dark">{patientProfile?.phone || 'Not available'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-medilink-primary" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Address</p>
+                        <p className="mt-1 break-words text-sm font-semibold text-medilink-dark">{patientProfile?.address || 'Not available'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {patientLookupError && (
+                    <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{patientLookupError}</span>
+                    </div>
+                  )}
+
+                  <div className="mt-5 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handlePatientLogout}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
         <div className="mb-8 overflow-hidden rounded-3xl bg-gradient-to-r from-medilink-primary to-medilink-secondary p-8 text-white shadow-medical-lg">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -615,62 +722,23 @@ const BookAppointmentPage = () => {
           </div>
         )}
 
-        <div className="mb-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-medical backdrop-blur-sm">
-            <div className="flex items-start gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-500 text-xl font-bold text-white shadow-medical">
-                {patientInitials}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-medilink-primary">Patient Profile</p>
-                <div className="mt-2 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <h2 className="text-2xl font-bold text-medilink-dark">{patientDisplayName}</h2>
-                    <p className="mt-1 text-sm text-gray-500">
-                      {hasLinkedPatient
-                        ? 'Your patient details are linked automatically from your login session.'
-                        : 'Manual testing mode is active. Enter a patient profile to continue.'}
-                    </p>
-                  </div>
-                  {patientLoading && (
-                    <div className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700">
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                      Loading profile
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Patient ID</p>
-                    <p className="mt-2 break-all text-sm font-semibold text-medilink-dark">{patientDetails.patientId || 'Not linked'}</p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Email</p>
-                    <p className="mt-2 break-all text-sm font-semibold text-medilink-dark">{patientProfile?.email || storedUser?.email || 'Not available'}</p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Phone</p>
-                    <p className="mt-2 text-sm font-semibold text-medilink-dark">{patientProfile?.phone || 'Not available'}</p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Address</p>
-                    <p className="mt-2 line-clamp-2 text-sm font-semibold text-medilink-dark">{patientProfile?.address || 'Not available'}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {patientLookupError && (
-              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{patientLookupError}</span>
-              </div>
-            )}
-          </div>
-
+        <div className="mb-8">
           <div className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-medical backdrop-blur-sm">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-medilink-primary">How It Works</p>
+            <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-medilink-dark">Follow the steps to complete your booking</h2>
+                <p className="mt-2 max-w-2xl text-sm text-gray-500">
+                  Open the patient profile button in the top-right corner any time to review your linked details while you continue the booking flow.
+                </p>
+              </div>
+              {patientLoading && (
+                <div className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700">
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  Loading profile
+                </div>
+              )}
+            </div>
             <div className="mt-5 space-y-4">
               {[
                 { icon: Search, title: 'Browse by specialty', text: 'Start from the treatment area you need and review only matching approved doctors.' },
@@ -688,6 +756,13 @@ const BookAppointmentPage = () => {
                 </div>
               ))}
             </div>
+
+            {patientLookupError && (
+              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{patientLookupError}</span>
+              </div>
+            )}
           </div>
         </div>
 
