@@ -1,9 +1,39 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  ArrowRight,
+  BadgeCheck,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  HeartPulse,
+  Hospital,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Stethoscope,
+  UserRound,
+  Wallet,
+  XCircle
+} from 'lucide-react';
+
+const resolveStoredUser = () => {
+  try {
+    const rawUser = localStorage.getItem('user');
+    return rawUser ? JSON.parse(rawUser) : null;
+  } catch {
+    return null;
+  }
+};
 
 const BookAppointmentPage = () => {
-  const navigate = useNavigate();
+  const storedUser = resolveStoredUser();
   const [step, setStep] = useState(1); // 1: select specialty, 2: select doctor, 3: select schedule, 4: confirm
+  const [patientDetails, setPatientDetails] = useState({
+    patientId: storedUser?.userId || storedUser?.id || '',
+    patientName: storedUser?.name || '',
+  });
+  const [formError, setFormError] = useState('');
 
   // Step 1: Specialty selection
   const [specialties, setSpecialties] = useState([]);
@@ -27,6 +57,20 @@ const BookAppointmentPage = () => {
     notes: ''
   });
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState(null);
+  const [bookingError, setBookingError] = useState('');
+  const [paymentForm, setPaymentForm] = useState({
+    appointmentId: '',
+    patientId: '',
+    amount: '',
+    paymentMethod: 'CREDIT_CARD',
+    recipientEmail: '',
+    recipientPhone: '',
+    simulateSuccess: true,
+  });
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentResult, setPaymentResult] = useState(null);
+  const [paymentError, setPaymentError] = useState('');
 
   // Common specialties
   const commonSpecialties = [
@@ -34,6 +78,25 @@ const BookAppointmentPage = () => {
     'GENERAL PRACTICE', 'NEUROLOGY', 'ONCOLOGY', 'PEDIATRICS',
     'PSYCHIATRY', 'RADIOLOGY', 'SURGERY', 'ORTHOPEDICS'
   ];
+
+  const formatAppointmentDateTime = (dateTime) => {
+    if (!dateTime) {
+      return 'Not available';
+    }
+
+    const parsedDate = new Date(dateTime);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return dateTime;
+    }
+
+    return parsedDate.toLocaleString('en-LK', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
 
   useEffect(() => {
     setSpecialties(commonSpecialties);
@@ -53,6 +116,12 @@ const BookAppointmentPage = () => {
   };
 
   const handleSpecialtySelect = (specialty) => {
+    if (!patientDetails.patientId.trim()) {
+      setFormError('Enter the patient ID before starting the booking.');
+      return;
+    }
+
+    setFormError('');
     setSelectedSpecialty(specialty);
     fetchDoctorsBySpecialty(specialty);
   };
@@ -77,19 +146,19 @@ const BookAppointmentPage = () => {
 
   const handleDoctorSelect = (doctor) => {
     setSelectedDoctor(doctor);
-    fetchDoctorSchedules(doctor.id);
+    fetchDoctorSchedules(doctor.doctorId);
   };
 
   const fetchDoctorSchedules = async (doctorId) => {
     setLoadingSchedules(true);
     try {
-      const response = await fetch(`http://localhost:8083/api/schedules/doctor/69dda11899183b33e3e63c9f`);
+      const response = await fetch(`http://localhost:8083/api/schedules/doctor/${doctorId}`);
       if (response.ok) {
         const data = await response.json();
         setSchedules(data.filter(schedule => schedule.isAvailable));
         
         // Fetch doctor appointments for appointment number calculation
-        await fetchDoctorAppointments();
+        await fetchDoctorAppointments(doctorId);
         setStep(3);
       } else {
         console.error('Failed to fetch schedules');
@@ -101,9 +170,9 @@ const BookAppointmentPage = () => {
     }
   };
 
-  const fetchDoctorAppointments = async () => {
+  const fetchDoctorAppointments = async (doctorId) => {
     try {
-      const response = await fetch('http://localhost:8084/api/appointments/doctor/69dda11899183b33e3e63c9f');
+      const response = await fetch(`http://localhost:8084/api/appointments/doctor/${doctorId}`);
       if (response.ok) {
         const data = await response.json();
         setDoctorAppointments(data);
@@ -187,12 +256,87 @@ const BookAppointmentPage = () => {
     return hospital ? hospital.name : 'Unknown Hospital';
   };
 
-  const createTelemedicineSession = async (appointmentNumber, appointmentDate) => {
+  const selectedScheduleDate = useMemo(() => {
+    if (!selectedSchedule) {
+      return '';
+    }
+
+    return getScheduleDate(new Date(), selectedSchedule.day);
+  }, [selectedSchedule]);
+
+  const projectedAppointmentNumber = useMemo(() => {
+    if (!selectedScheduleDate) {
+      return null;
+    }
+
+    return getNextAppointmentNumber(selectedScheduleDate);
+  }, [doctorAppointments, selectedScheduleDate]);
+
+  const handlePaymentChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    setPaymentForm(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  };
+
+  const handleRestartFlow = () => {
+    setStep(1);
+    setSelectedSpecialty('');
+    setSelectedDoctor(null);
+    setSelectedSchedule(null);
+    setDoctors([]);
+    setSchedules([]);
+    setDoctorAppointments([]);
+    setAppointmentData({
+      consultationType: 'IN_PERSON',
+      notes: ''
+    });
+    setBookingSuccess(null);
+    setBookingError('');
+    setPaymentResult(null);
+    setPaymentError('');
+  };
+
+  const handleProcessPayment = async (event) => {
+    event.preventDefault();
+    setPaymentLoading(true);
+    setPaymentError('');
+    setPaymentResult(null);
+
+    try {
+      const response = await fetch('http://localhost:8085/api/payments/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...paymentForm,
+          amount: Number(paymentForm.amount),
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.message || 'Payment processing failed.');
+      }
+
+      setPaymentResult(payload);
+      setBookingSuccess(prev => prev ? { ...prev, status: 'CONFIRMED' } : prev);
+    } catch (error) {
+      setPaymentError(error.message || 'Payment processing failed.');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const createTelemedicineSession = async (appointmentDate) => {
     try {
       const telemedicineRequest = {
-        doctorId: '69dda11899183b33e3e63c9f',
-        patientId: '69d1248a5144a126417bf678',
-        patientName: 'Current Patient', // This would come from patient profile
+        doctorId: selectedDoctor.doctorId,
+        patientId: patientDetails.patientId.trim(),
+        patientName: patientDetails.patientName.trim() || 'Patient',
         doctorName: selectedDoctor.name,
         doctorSpecialty: selectedDoctor.specialty,
         consultationType: 'TELEMEDICINE',
@@ -232,6 +376,7 @@ const BookAppointmentPage = () => {
 
   const handleBookAppointment = async () => {
     setBookingLoading(true);
+    setBookingError('');
     try {
       // Create appointment date time properly (must be in the future)
       const today = new Date();
@@ -240,14 +385,15 @@ const BookAppointmentPage = () => {
 
       // Calculate next appointment number
       const nextAppointmentNumber = getNextAppointmentNumber(appointmentDate);
+      const doctorHospital = getHospitalName(selectedSchedule.hospitalId);
 
       const appointmentRequest = {
-        patientId: '69d1248a5144a126417bf678', // Using the patient ID you provided
-        doctorId: '69dda11899183b33e3e63c9f', // Using the doctor ID you provided
+        patientId: patientDetails.patientId.trim(),
+        doctorId: selectedDoctor.doctorId,
         doctorName: selectedDoctor.name,
         doctorSpecialty: selectedDoctor.specialty,
-        doctorHospital: selectedDoctor.hospital || 'Hospital',
-        consultationFee: selectedDoctor.consultationFee || 50.0,
+        doctorHospital: doctorHospital,
+        consultationFee: selectedDoctor.fee || 50.0,
         consultationType: appointmentData.consultationType, // Add consultation type
         appointmentDateTime: appointmentDateTime,
         notes: appointmentData.notes,
@@ -264,25 +410,51 @@ const BookAppointmentPage = () => {
 
       if (response.ok) {
         const createdAppointment = await response.json();
+        sessionStorage.setItem('latestAppointment', JSON.stringify(createdAppointment));
         
         // If consultation type is telemedicine, create telemedicine session
         if (appointmentData.consultationType === 'TELEMEDICINE') {
-          await createTelemedicineSession(nextAppointmentNumber, appointmentDate);
+          await createTelemedicineSession(appointmentDate);
         }
-        
-        // Show appointment number to user
-        alert(`Appointment booked successfully!\n\nAppointment Number: ${nextAppointmentNumber}\nDate: ${appointmentDate}\nTime: ${selectedSchedule.startTime}\nDoctor: Dr. ${selectedDoctor.name}\nConsultation: ${getConsultationTypeLabel(appointmentData.consultationType)}\n\nYour appointment number: ${nextAppointmentNumber} of ${selectedSchedule.patientLimit}`);
-        
-        navigate('/patient/dashboard');
+
+        const successAppointment = {
+          ...createdAppointment,
+          appointmentNumber: createdAppointment.appointmentNumber ?? nextAppointmentNumber,
+          doctorName: createdAppointment.doctorName || selectedDoctor.name,
+          doctorSpecialty: createdAppointment.doctorSpecialty || selectedDoctor.specialty,
+          doctorHospital: createdAppointment.doctorHospital || doctorHospital,
+          consultationFee: createdAppointment.consultationFee || selectedDoctor.fee || 50,
+          appointmentDateTime: createdAppointment.appointmentDateTime || appointmentDateTime,
+        };
+
+        setBookingSuccess(successAppointment);
+        setPaymentForm({
+          appointmentId: successAppointment.id || '',
+          patientId: successAppointment.patientId || patientDetails.patientId.trim(),
+          amount: successAppointment.consultationFee || '',
+          paymentMethod: 'CREDIT_CARD',
+          recipientEmail: '',
+          recipientPhone: '',
+          simulateSuccess: true,
+        });
+        setPaymentResult(null);
       } else {
         const errorData = await response.json().catch(() => ({}));
-        alert(`Failed to book appointment: ${errorData.message || 'Please try again.'}`);
+        setBookingError(errorData.message || 'Failed to book appointment. Please try again.');
       }
     } catch (error) {
-      alert('Error booking appointment. Please try again.');
+      setBookingError('Error booking appointment. Please try again.');
     } finally {
       setBookingLoading(false);
     }
+  };
+
+  const handlePatientDetailChange = (event) => {
+    const { name, value } = event.target;
+    setPatientDetails(prev => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const getConsultationTypeLabel = (type) => {
@@ -339,26 +511,64 @@ const BookAppointmentPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Book Appointment</h1>
-          <p className="text-gray-600 mt-2">Follow the steps to book your appointment</p>
-
-          {/* Progress indicator */}
-          <div className="mt-6 flex items-center justify-between">
-            {[1, 2, 3, 4].map((stepNumber) => (
-              <div key={stepNumber} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= stepNumber ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-600'
-                  }`}>
-                  {stepNumber}
-                </div>
-                {stepNumber < 4 && (
-                  <div className={`w-16 h-1 mx-2 ${step > stepNumber ? 'bg-blue-600' : 'bg-gray-300'
-                    }`} />
-                )}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 overflow-hidden rounded-3xl bg-gradient-to-r from-medilink-primary to-medilink-secondary p-8 text-white shadow-medical-lg">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-semibold">
+                <HeartPulse className="h-4 w-4" />
+                Medilink Patient Booking
               </div>
-            ))}
+              <h1 className="mt-4 text-4xl font-bold font-display">Book your consultation with confidence</h1>
+              <p className="mt-3 max-w-2xl text-white/85">
+                Search by specialty, compare approved doctors, choose the best slot, and confirm payment in one guided healthcare journey.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3 lg:w-[360px]">
+              <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/70">Specialties</p>
+                <p className="mt-2 text-2xl font-bold">{specialties.length}</p>
+              </div>
+              <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/70">Doctors</p>
+                <p className="mt-2 text-2xl font-bold">{doctors.length || '-'}</p>
+              </div>
+              <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/70">Queue</p>
+                <p className="mt-2 text-2xl font-bold">{projectedAppointmentNumber || '-'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {bookingError && (
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-sm text-red-700">
+            <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{bookingError}</span>
+          </div>
+        )}
+
+        <div className="mb-8 rounded-3xl border border-white/80 bg-white/80 p-5 shadow-medical backdrop-blur-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-medilink-primary">Patient Journey</p>
+              <p className="mt-2 text-lg font-semibold text-medilink-dark">Follow the steps to complete your booking</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {[1, 2, 3, 4].map((stepNumber) => (
+                <div key={stepNumber} className="flex items-center gap-3">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-semibold ${
+                    step >= stepNumber || bookingSuccess
+                      ? 'bg-gradient-to-br from-medilink-primary to-medilink-secondary text-white'
+                      : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {stepNumber}
+                  </div>
+                  {stepNumber < 4 && <div className={`h-1 w-12 rounded-full ${step > stepNumber || bookingSuccess ? 'bg-medilink-primary' : 'bg-gray-200'}`} />}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -366,6 +576,39 @@ const BookAppointmentPage = () => {
         {step === 1 && (
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Medical Specialty</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Patient ID
+                </label>
+                <input
+                  type="text"
+                  name="patientId"
+                  value={patientDetails.patientId}
+                  onChange={handlePatientDetailChange}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Enter the patient ID from patient-service"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Patient Name
+                </label>
+                <input
+                  type="text"
+                  name="patientName"
+                  value={patientDetails.patientName}
+                  onChange={handlePatientDetailChange}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Optional display name for telemedicine"
+                />
+              </div>
+            </div>
+            {formError && (
+              <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
+                {formError}
+              </div>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {specialties.map((specialty) => (
                 <button
@@ -405,7 +648,7 @@ const BookAppointmentPage = () => {
               <div className="space-y-4">
                 {doctors.map((doctor) => (
                   <div
-                    key={doctor.id}
+                    key={doctor.doctorId}
                     className="border border-gray-300 rounded-lg p-4 hover:border-blue-500 cursor-pointer"
                     onClick={() => handleDoctorSelect(doctor)}
                   >
@@ -413,11 +656,13 @@ const BookAppointmentPage = () => {
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900">Dr. {doctor.name}</h3>
                         <p className="text-gray-600">{doctor.specialty}</p>
-                        <p className="text-gray-600">{doctor.hospital}</p>
+                        <p className="text-gray-600">
+                          {doctor.hospitalIds?.length ? `${doctor.hospitalIds.length} linked hospital(s)` : 'Hospital not assigned'}
+                        </p>
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-semibold text-blue-600">
-                          ${doctor.consultationFee || 50}
+                          Rs. {doctor.fee || 50}
                         </p>
                         <p className="text-sm text-gray-600">Consultation Fee</p>
                       </div>
@@ -518,14 +763,14 @@ const BookAppointmentPage = () => {
                 <h3 className="font-semibold text-gray-900">Doctor Details</h3>
                 <p className="text-gray-600">Dr. {selectedDoctor?.name}</p>
                 <p className="text-gray-600">{selectedDoctor?.specialty}</p>
-                <p className="text-gray-600">{selectedDoctor?.hospital}</p>
+                <p className="text-gray-600">{getHospitalName(selectedSchedule?.hospitalId)}</p>
               </div>
 
               <div className="border-b pb-4">
                 <h3 className="font-semibold text-gray-900">Schedule Details</h3>
                 <p className="text-gray-600">{selectedSchedule?.day}</p>
                 <p className="text-gray-600">{selectedSchedule?.startTime} - {selectedSchedule?.endTime}</p>
-                <p className="text-gray-600">Consultation Fee: ${selectedDoctor?.consultationFee || 50}</p>
+                <p className="text-gray-600">Consultation Fee: Rs. {selectedDoctor?.fee || 50}</p>
                 <div className="mt-2 p-3 bg-green-50 rounded-md">
                   <p className="text-sm text-green-800">
                     <strong>Your Appointment Number:</strong> {getNextAppointmentNumber(getScheduleDate(new Date(), selectedSchedule?.day))}
@@ -588,6 +833,185 @@ const BookAppointmentPage = () => {
               >
                 {bookingLoading ? 'Booking...' : 'Confirm Appointment'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {bookingSuccess && (
+          <div className="mt-8 grid gap-8 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className="rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-500 p-6 text-white shadow-medical-lg">
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl bg-white/15 p-3">
+                  <CheckCircle2 className="h-7 w-7" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">Appointment Booked</p>
+                  <h2 className="mt-1 text-2xl font-bold">Queue number #{bookingSuccess.appointmentNumber}</h2>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3 text-sm text-white/90">
+                <p className="flex items-start gap-3">
+                  <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" />
+                  {formatAppointmentDateTime(bookingSuccess.appointmentDateTime)}
+                </p>
+                <p className="flex items-start gap-3">
+                  <Stethoscope className="mt-0.5 h-4 w-4 shrink-0" />
+                  Dr. {bookingSuccess.doctorName}
+                </p>
+                <p className="flex items-start gap-3">
+                  <Hospital className="mt-0.5 h-4 w-4 shrink-0" />
+                  {bookingSuccess.doctorHospital}
+                </p>
+                <p className="flex items-start gap-3">
+                  <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                  Status: {bookingSuccess.status || 'PENDING_PAYMENT'}
+                </p>
+              </div>
+
+              <div className="mt-8 rounded-2xl bg-white/10 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/70">Next Step</p>
+                <p className="mt-2 text-sm text-white/90">
+                  Complete the payment to confirm the appointment automatically in the appointment service.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/80 bg-white p-6 shadow-medical">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-medilink-primary">Payment</p>
+                  <h2 className="mt-2 text-2xl font-bold text-medilink-dark">Finish checkout</h2>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Process the demo payment here and keep the patient flow inside one professional screen.
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-indigo-50 p-3">
+                  <CreditCard className="h-6 w-6 text-medilink-secondary" />
+                </div>
+              </div>
+
+              <form className="mt-6 space-y-4" onSubmit={handleProcessPayment}>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">Appointment ID</label>
+                    <input
+                      className="block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100"
+                      name="appointmentId"
+                      onChange={handlePaymentChange}
+                      required
+                      value={paymentForm.appointmentId}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">Patient ID</label>
+                    <input
+                      className="block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100"
+                      name="patientId"
+                      onChange={handlePaymentChange}
+                      required
+                      value={paymentForm.patientId}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">Amount</label>
+                    <input
+                      className="block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100"
+                      min="100"
+                      name="amount"
+                      onChange={handlePaymentChange}
+                      required
+                      step="0.01"
+                      type="number"
+                      value={paymentForm.amount}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">Payment Method</label>
+                    <select
+                      className="block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100"
+                      name="paymentMethod"
+                      onChange={handlePaymentChange}
+                      value={paymentForm.paymentMethod}
+                    >
+                      <option value="CREDIT_CARD">Credit Card</option>
+                      <option value="DEBIT_CARD">Debit Card</option>
+                      <option value="UPI">UPI</option>
+                      <option value="NET_BANKING">Net Banking</option>
+                      <option value="WALLET">Wallet</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">Recipient Email</label>
+                    <input
+                      className="block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100"
+                      name="recipientEmail"
+                      onChange={handlePaymentChange}
+                      placeholder="jane.smith@example.com"
+                      type="email"
+                      value={paymentForm.recipientEmail}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">Recipient Phone</label>
+                    <input
+                      className="block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100"
+                      name="recipientPhone"
+                      onChange={handlePaymentChange}
+                      placeholder="+1987654321"
+                      value={paymentForm.recipientPhone}
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-start gap-3 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-4 text-sm text-gray-600">
+                  <input
+                    checked={paymentForm.simulateSuccess}
+                    name="simulateSuccess"
+                    onChange={handlePaymentChange}
+                    type="checkbox"
+                    className="mt-1"
+                  />
+                  <span>Simulate a successful payment and confirm the appointment automatically.</span>
+                </label>
+
+                {paymentError && (
+                  <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{paymentError}</span>
+                  </div>
+                )}
+
+                {paymentResult && (
+                  <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-4 text-sm text-emerald-700">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="font-semibold">Payment status: {paymentResult.status}</p>
+                      {paymentResult.transactionReference && (
+                        <p className="mt-1">Transaction: {paymentResult.transactionReference}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-between">
+                  <button
+                    className="rounded-2xl border border-gray-200 px-5 py-3 text-sm font-medium text-gray-600 transition hover:border-medilink-primary hover:text-medilink-primary"
+                    onClick={handleRestartFlow}
+                    type="button"
+                  >
+                    Book another appointment
+                  </button>
+                  <button
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-medilink-primary to-medilink-secondary px-6 py-3 text-sm font-semibold text-white shadow-medical transition hover:shadow-medical-lg disabled:opacity-60"
+                    disabled={paymentLoading}
+                    type="submit"
+                  >
+                    {paymentLoading ? 'Processing payment...' : 'Confirm payment'}
+                    {!paymentLoading && <ArrowRight className="h-4 w-4" />}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
