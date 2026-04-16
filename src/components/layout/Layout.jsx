@@ -5,7 +5,7 @@ const Layout = () => {
   return (
     <div className="layout">
       <header>
-        <h1>MediLink Header</h1>
+        {/* <h1>MediLink Header</h1> */}
       </header>
       <main className="main-content">
         <Outlet />
