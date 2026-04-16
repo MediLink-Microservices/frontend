@@ -47,8 +47,8 @@ export default function LoginPage() {
       }
 
       if (role === "ADMIN") navigate("/admin");
-      else if (role === "DOCTOR") navigate("/doctor");
-      else navigate("/patient");
+      else if (role === "DOCTOR") navigate("/doctor/dashboard");
+      else navigate("/patient/dashboard");
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

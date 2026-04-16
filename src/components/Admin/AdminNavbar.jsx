@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 
 const PAGE_TITLES = {
   overview:  { title: "Overview",           subtitle: "Welcome back to your dashboard" },
+  appointments: { title: "Appointments",    subtitle: "Review all patient bookings across the platform" },
   doctors:   { title: "Doctor Management",  subtitle: "Create and manage doctor accounts" },
   users:     { title: "User Management",    subtitle: "Manage admins and patients" },
   analytics: { title: "Platform Analytics", subtitle: "Insights and platform statistics" },

@@ -4,13 +4,12 @@ import {
   BadgeCheck,
   CalendarDays,
   CheckCircle2,
-  Clock3,
   CreditCard,
   HeartPulse,
   Hospital,
+  LoaderCircle,
   Search,
   ShieldCheck,
-  Sparkles,
   Stethoscope,
   UserRound,
   Wallet,
@@ -26,6 +25,23 @@ const resolveStoredUser = () => {
   }
 };
 
+const buildPatientName = (patient, fallbackName = '') => {
+  if (!patient) {
+    return fallbackName;
+  }
+
+  const fullName = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim();
+  return fullName || patient.name || fallbackName;
+};
+
+const getPatientInitials = (name = '') =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'PT';
+
 const BookAppointmentPage = () => {
   const storedUser = resolveStoredUser();
   const [step, setStep] = useState(1); // 1: select specialty, 2: select doctor, 3: select schedule, 4: confirm
@@ -33,6 +49,9 @@ const BookAppointmentPage = () => {
     patientId: storedUser?.userId || storedUser?.id || '',
     patientName: storedUser?.name || '',
   });
+  const [patientProfile, setPatientProfile] = useState(null);
+  const [patientLoading, setPatientLoading] = useState(Boolean(storedUser?.userId || storedUser?.id));
+  const [patientLookupError, setPatientLookupError] = useState('');
   const [formError, setFormError] = useState('');
 
   // Step 1: Specialty selection
@@ -102,6 +121,47 @@ const BookAppointmentPage = () => {
     setSpecialties(commonSpecialties);
     fetchHospitals();
   }, []);
+
+  useEffect(() => {
+    const patientId = storedUser?.userId || storedUser?.id;
+
+    if (!patientId) {
+      setPatientLoading(false);
+      return;
+    }
+
+    const fetchPatientProfile = async () => {
+      setPatientLoading(true);
+      setPatientLookupError('');
+
+      try {
+        const response = await fetch(`http://localhost:8086/api/patient/${patientId}`);
+
+        if (!response.ok) {
+          throw new Error('Unable to load patient profile from patient-service.');
+        }
+
+        const profile = await response.json();
+        setPatientProfile(profile);
+        setPatientDetails((prev) => ({
+          ...prev,
+          patientId,
+          patientName: buildPatientName(profile, storedUser?.name || prev.patientName),
+        }));
+      } catch (error) {
+        setPatientLookupError(error.message || 'Unable to load patient information right now.');
+        setPatientDetails((prev) => ({
+          ...prev,
+          patientId,
+          patientName: storedUser?.name || prev.patientName,
+        }));
+      } finally {
+        setPatientLoading(false);
+      }
+    };
+
+    fetchPatientProfile();
+  }, [storedUser?.id, storedUser?.name, storedUser?.userId]);
 
   const fetchHospitals = async () => {
     try {
@@ -271,6 +331,10 @@ const BookAppointmentPage = () => {
 
     return getNextAppointmentNumber(selectedScheduleDate);
   }, [doctorAppointments, selectedScheduleDate]);
+
+  const patientDisplayName = patientDetails.patientName || storedUser?.name || 'Patient';
+  const patientInitials = useMemo(() => getPatientInitials(patientDisplayName), [patientDisplayName]);
+  const hasLinkedPatient = Boolean(storedUser?.userId || storedUser?.id);
 
   const handlePaymentChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -520,9 +584,11 @@ const BookAppointmentPage = () => {
                 <HeartPulse className="h-4 w-4" />
                 Medilink Patient Booking
               </div>
-              <h1 className="mt-4 text-4xl font-bold font-display">Book your consultation with confidence</h1>
+              <h1 className="mt-4 text-4xl font-bold font-display">
+                {patientLoading ? 'Preparing your healthcare dashboard...' : `Welcome back, ${patientDisplayName}`}
+              </h1>
               <p className="mt-3 max-w-2xl text-white/85">
-                Search by specialty, compare approved doctors, choose the best slot, and confirm payment in one guided healthcare journey.
+                Browse doctors by specialty, compare approved consultants, choose the best slot, and complete payment in one guided healthcare journey.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-3 lg:w-[360px]">
@@ -549,6 +615,82 @@ const BookAppointmentPage = () => {
           </div>
         )}
 
+        <div className="mb-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-medical backdrop-blur-sm">
+            <div className="flex items-start gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-500 text-xl font-bold text-white shadow-medical">
+                {patientInitials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-medilink-primary">Patient Profile</p>
+                <div className="mt-2 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-medilink-dark">{patientDisplayName}</h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {hasLinkedPatient
+                        ? 'Your patient details are linked automatically from your login session.'
+                        : 'Manual testing mode is active. Enter a patient profile to continue.'}
+                    </p>
+                  </div>
+                  {patientLoading && (
+                    <div className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700">
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      Loading profile
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Patient ID</p>
+                    <p className="mt-2 break-all text-sm font-semibold text-medilink-dark">{patientDetails.patientId || 'Not linked'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Email</p>
+                    <p className="mt-2 break-all text-sm font-semibold text-medilink-dark">{patientProfile?.email || storedUser?.email || 'Not available'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Phone</p>
+                    <p className="mt-2 text-sm font-semibold text-medilink-dark">{patientProfile?.phone || 'Not available'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Address</p>
+                    <p className="mt-2 line-clamp-2 text-sm font-semibold text-medilink-dark">{patientProfile?.address || 'Not available'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {patientLookupError && (
+              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{patientLookupError}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-medical backdrop-blur-sm">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-medilink-primary">How It Works</p>
+            <div className="mt-5 space-y-4">
+              {[
+                { icon: Search, title: 'Browse by specialty', text: 'Start from the treatment area you need and review only matching approved doctors.' },
+                { icon: CalendarDays, title: 'Choose your ideal slot', text: 'Compare hospitals, availability, and queue position before you book.' },
+                { icon: Wallet, title: 'Complete secure payment', text: 'Finish checkout here so the appointment moves to a confirmed status automatically.' },
+              ].map(({ icon: Icon, title, text }) => (
+                <div key={title} className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+                  <div className="rounded-2xl bg-white p-3 shadow-sm">
+                    <Icon className="h-5 w-5 text-medilink-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-medilink-dark">{title}</p>
+                    <p className="mt-1 text-sm leading-6 text-gray-500">{text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <div className="mb-8 rounded-3xl border border-white/80 bg-white/80 p-5 shadow-medical backdrop-blur-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -574,49 +716,81 @@ const BookAppointmentPage = () => {
 
         {/* Step 1: Select Specialty */}
         {step === 1 && (
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Medical Specialty</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="rounded-3xl border border-white/80 bg-white p-6 shadow-medical">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Patient ID
-                </label>
-                <input
-                  type="text"
-                  name="patientId"
-                  value={patientDetails.patientId}
-                  onChange={handlePatientDetailChange}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md"
-                  placeholder="Enter the patient ID from patient-service"
-                />
+                <h2 className="text-2xl font-bold text-medilink-dark">Choose a medical specialty</h2>
+                <p className="mt-2 max-w-2xl text-sm text-gray-500">
+                  Start from the specialty you need. We’ll show you approved doctors and let you continue the appointment flow without re-entering your patient profile.
+                </p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Patient Name
-                </label>
-                <input
-                  type="text"
-                  name="patientName"
-                  value={patientDetails.patientName}
-                  onChange={handlePatientDetailChange}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md"
-                  placeholder="Optional display name for telemedicine"
-                />
+              <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-700">
+                <div className="flex items-center gap-2 font-semibold">
+                  <UserRound className="h-4 w-4" />
+                  {patientDisplayName}
+                </div>
+                <p className="mt-1 text-xs text-sky-600">Patient ID: {patientDetails.patientId || 'Not linked'}</p>
               </div>
             </div>
             {formError && (
-              <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mb-4 mt-6 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
                 {formError}
               </div>
             )}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+
+            {!hasLinkedPatient && (
+              <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Patient ID
+                  </label>
+                  <input
+                    type="text"
+                    name="patientId"
+                    value={patientDetails.patientId}
+                    onChange={handlePatientDetailChange}
+                    className="block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100"
+                    placeholder="Enter the patient ID from patient-service"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Patient Name
+                  </label>
+                  <input
+                    type="text"
+                    name="patientName"
+                    value={patientDetails.patientName}
+                    onChange={handlePatientDetailChange}
+                    className="block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100"
+                    placeholder="Display name for telemedicine"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {specialties.map((specialty) => (
                 <button
                   key={specialty}
                   onClick={() => handleSpecialtySelect(specialty)}
-                  className="p-4 border border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                  className={`group rounded-2xl border px-5 py-5 text-left transition-all duration-200 ${
+                    selectedSpecialty === specialty
+                      ? 'border-medilink-primary bg-sky-50 shadow-sm'
+                      : 'border-gray-200 bg-white hover:-translate-y-0.5 hover:border-medilink-primary hover:bg-sky-50/70'
+                  }`}
                 >
-                  <div className="text-lg font-medium text-gray-900">{specialty}</div>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-lg font-semibold text-medilink-dark">{specialty}</div>
+                      <p className="mt-2 text-sm text-gray-500">
+                        Browse available doctors and continue to schedule selection.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3 transition group-hover:bg-white">
+                      <Stethoscope className="h-5 w-5 text-medilink-primary" />
+                    </div>
+                  </div>
                 </button>
               ))}
             </div>
