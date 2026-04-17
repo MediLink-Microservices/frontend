@@ -17,7 +17,7 @@ import {
   XCircle
 } from 'lucide-react';
 import PatientPortalTabs from '../../components/patient/PatientPortalTabs';
-import { patientAPI } from '../../services/api';
+import { patientAPI, paymentAPI } from '../../services/api';
 import { getStoredUser } from '../../utils/authStorage';
 
 const resolveStoredUser = () => {
@@ -88,7 +88,6 @@ const BookAppointmentPage = () => {
     paymentMethod: 'CREDIT_CARD',
     recipientEmail: '',
     recipientPhone: '',
-    simulateSuccess: true,
   });
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentResult, setPaymentResult] = useState(null);
@@ -472,27 +471,22 @@ const BookAppointmentPage = () => {
     setPaymentResult(null);
 
     try {
-      const response = await fetch('http://localhost:8085/api/payments/process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...paymentForm,
-          amount: Number(paymentForm.amount),
-        }),
+      const response = await paymentAPI.processPayment({
+        ...paymentForm,
+        amount: Number(paymentForm.amount),
       });
 
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload.message || 'Payment processing failed.');
-      }
+      const payload = response.data;
 
       setPaymentResult(payload);
-      setBookingSuccess(prev => prev ? { ...prev, status: 'CONFIRMED' } : prev);
+      if (payload.checkoutUrl) {
+        window.location.assign(payload.checkoutUrl);
+        return;
+      }
+
+      throw new Error(payload.failureReason || 'Stripe checkout URL was not returned.');
     } catch (error) {
-      setPaymentError(error.message || 'Payment processing failed.');
+      setPaymentError(error?.response?.data?.message || error.message || 'Payment processing failed.');
     } finally {
       setPaymentLoading(false);
     }
@@ -625,7 +619,6 @@ const BookAppointmentPage = () => {
           paymentMethod: 'CREDIT_CARD',
           recipientEmail: '',
           recipientPhone: '',
-          simulateSuccess: true,
         });
         setPaymentResult(null);
       } else {
@@ -1165,7 +1158,7 @@ const BookAppointmentPage = () => {
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-medilink-primary">Payment</p>
                   <h2 className="mt-2 text-2xl font-bold text-medilink-dark">Finish checkout</h2>
                   <p className="mt-2 text-sm text-gray-500">
-                    Process the demo payment here and keep the patient flow inside one professional screen.
+                    Continue to Stripe Checkout test mode to pay securely and confirm this appointment.
                   </p>
                 </div>
                 <div className="rounded-2xl bg-indigo-50 p-3">
@@ -1246,16 +1239,9 @@ const BookAppointmentPage = () => {
                   </div>
                 </div>
 
-                <label className="flex items-start gap-3 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-4 text-sm text-gray-600">
-                  <input
-                    checked={paymentForm.simulateSuccess}
-                    name="simulateSuccess"
-                    onChange={handlePaymentChange}
-                    type="checkbox"
-                    className="mt-1"
-                  />
-                  <span>Simulate a successful payment and confirm the appointment automatically.</span>
-                </label>
+                <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-4 text-sm text-sky-800">
+                  You will be redirected to Stripe Checkout test mode to finish payment securely.
+                </div>
 
                 {paymentError && (
                   <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -1316,7 +1302,7 @@ const BookAppointmentPage = () => {
                     disabled={paymentLoading}
                     type="submit"
                   >
-                    {paymentLoading ? 'Processing payment...' : 'Confirm payment'}
+                    {paymentLoading ? 'Redirecting to Stripe...' : 'Pay with Stripe'}
                     {!paymentLoading && <ArrowRight className="h-4 w-4" />}
                   </button>
                 </div>

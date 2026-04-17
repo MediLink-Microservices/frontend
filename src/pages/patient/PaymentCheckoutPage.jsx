@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   BadgeCheck,
   CalendarDays,
@@ -10,6 +11,7 @@ import {
   Wallet,
   XCircle,
 } from 'lucide-react';
+import { paymentAPI } from '../../services/api';
 
 const readLatestAppointment = () => {
   try {
@@ -21,6 +23,7 @@ const readLatestAppointment = () => {
 };
 
 const PaymentCheckoutPage = () => {
+  const navigate = useNavigate();
   const latestAppointment = useMemo(() => readLatestAppointment(), []);
   const [paymentForm, setPaymentForm] = useState({
     appointmentId: latestAppointment?.id || '',
@@ -29,11 +32,64 @@ const PaymentCheckoutPage = () => {
     paymentMethod: 'CREDIT_CARD',
     recipientEmail: '',
     recipientPhone: '',
-    simulateSuccess: true,
   });
   const [paymentResult, setPaymentResult] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [checkoutMessage, setCheckoutMessage] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const appointmentId = params.get('appointment_id');
+    const checkoutState = params.get('checkout');
+
+    if (!appointmentId) {
+      return;
+    }
+
+    setPaymentForm(prev => ({
+      ...prev,
+      appointmentId: prev.appointmentId || appointmentId,
+    }));
+
+    if (!checkoutState) {
+      return;
+    }
+
+    if (checkoutState === 'cancel') {
+      setCheckoutMessage('Stripe checkout was cancelled. You can restart payment below.');
+    } else if (checkoutState === 'success') {
+      setCheckoutMessage('Stripe checkout completed. We are refreshing your payment status.');
+    }
+
+    const loadPaymentStatus = async () => {
+      try {
+        const response = await paymentAPI.getPaymentByAppointmentId(appointmentId);
+        const data = response.data;
+        setPaymentResult(data);
+        return data;
+      } catch (statusError) {
+        setError(statusError?.response?.data?.message || 'Unable to load Stripe payment status yet.');
+        return null;
+      }
+    };
+
+    loadPaymentStatus().then((data) => {
+      if (checkoutState !== 'success' || !data || data.status !== 'PENDING') {
+        return;
+      }
+
+      let attempts = 0;
+      const maxAttempts = 8;
+      const timer = setInterval(async () => {
+        attempts += 1;
+        const refreshed = await loadPaymentStatus();
+        if (!refreshed || refreshed.status !== 'PENDING' || attempts >= maxAttempts) {
+          clearInterval(timer);
+        }
+      }, 2500);
+    });
+  }, []);
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -48,32 +104,36 @@ const PaymentCheckoutPage = () => {
     setIsSubmitting(true);
     setError('');
     setPaymentResult(null);
+    setCheckoutMessage('');
 
     try {
-      const response = await fetch('http://localhost:8085/api/payments/process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...paymentForm,
-          amount: Number(paymentForm.amount),
-        }),
+      const response = await paymentAPI.processPayment({
+        ...paymentForm,
+        amount: Number(paymentForm.amount),
       });
 
-      const payload = await response.json().catch(() => ({}));
+      const payload = response.data;
+      setPaymentResult(payload);
 
-      if (!response.ok) {
-        throw new Error(payload.message || 'Payment processing failed.');
+      if (payload.checkoutUrl) {
+        window.location.assign(payload.checkoutUrl);
+        return;
       }
 
-      setPaymentResult(payload);
+      if (payload.status === 'SUCCESS') {
+        setCheckoutMessage('Payment already completed successfully for this appointment.');
+        return;
+      }
+
+      throw new Error(payload.failureReason || 'Stripe checkout URL was not returned.');
     } catch (submissionError) {
-      setError(submissionError.message);
+      setError(submissionError?.response?.data?.message || submissionError.message);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const isPaymentSuccessful = paymentResult?.status === 'SUCCESS';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 py-8">
@@ -87,7 +147,7 @@ const PaymentCheckoutPage = () => {
               </div>
               <h1 className="mt-4 text-4xl font-bold font-display">Complete your appointment payment</h1>
               <p className="mt-3 max-w-2xl text-white/85">
-                This page processes a demo payment and helps you confirm the appointment immediately after booking.
+                This page redirects you to Stripe Checkout test mode so the appointment can be confirmed securely after payment.
               </p>
             </div>
             <div className="rounded-2xl bg-white/10 p-5 backdrop-blur-sm">
@@ -102,7 +162,7 @@ const PaymentCheckoutPage = () => {
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-medilink-primary">Payment Form</p>
-                <h2 className="mt-2 text-2xl font-bold text-medilink-dark">Secure demo checkout</h2>
+                <h2 className="mt-2 text-2xl font-bold text-medilink-dark">Secure Stripe checkout</h2>
               </div>
               <div className="rounded-2xl bg-indigo-50 p-3">
                 <CreditCard className="h-6 w-6 text-medilink-secondary" />
@@ -185,16 +245,16 @@ const PaymentCheckoutPage = () => {
                 </div>
               </div>
 
-              <label className="flex items-start gap-3 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-4 text-sm text-gray-700">
-                <input
-                  checked={paymentForm.simulateSuccess}
-                  name="simulateSuccess"
-                  onChange={handleChange}
-                  type="checkbox"
-                  className="mt-1"
-                />
-                Simulate successful payment and confirm the appointment automatically
-              </label>
+              <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-4 text-sm text-sky-800">
+                You will be redirected to Stripe Checkout test mode to complete this payment securely.
+              </div>
+
+              {checkoutMessage && (
+                <div className="flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{checkoutMessage}</span>
+                </div>
+              )}
 
               {error && (
                 <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -215,13 +275,24 @@ const PaymentCheckoutPage = () => {
                 </div>
               )}
 
-              <button
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-medilink-primary to-medilink-secondary px-6 py-3 text-white shadow-medical transition hover:shadow-medical-lg disabled:opacity-50"
-                disabled={isSubmitting}
-                type="submit"
-              >
-                {isSubmitting ? 'Processing Payment...' : 'Process Payment'}
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-medilink-primary to-medilink-secondary px-6 py-3 text-white shadow-medical transition hover:shadow-medical-lg disabled:opacity-50"
+                  disabled={isSubmitting || isPaymentSuccessful}
+                  type="submit"
+                >
+                  {isPaymentSuccessful ? 'Payment Completed' : isSubmitting ? 'Redirecting to Stripe...' : 'Pay with Stripe'}
+                </button>
+                {isPaymentSuccessful && (
+                  <button
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-sky-200 bg-white px-6 py-3 text-medilink-primary shadow-sm transition hover:bg-sky-50"
+                    onClick={() => navigate('/patient/dashboard')}
+                    type="button"
+                  >
+                    Go to Patient Dashboard
+                  </button>
+                )}
+              </div>
             </form>
           </div>
 
