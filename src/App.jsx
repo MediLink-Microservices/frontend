@@ -10,6 +10,7 @@ import DoctorDashboard from './pages/doctor/DoctorDashboard'
 import PatientDashboard from './pages/patient/PatientDashboard'
 import MyAppointmentsPage from './pages/patient/MyAppointmentsPage'
 import PatientProfilePage from './pages/patient/PatientProfilePage'
+import MedicalReportsPage from './pages/patient/MedicalReportsPage'
 import PaymentCheckoutPage from './pages/patient/PaymentCheckoutPage'
 import BookAppointmentPage from './pages/patient/BookAppointmentPage'
 import AppointmentsPage from './pages/doctor/AppointmentsPage'
@@ -49,6 +50,7 @@ function App() {
           <Route path="patient/book-appointment" element={<ProtectedRoute allowedRole="PATIENT"><BookAppointmentPage /></ProtectedRoute>} />
           <Route path="patient/appointments" element={<ProtectedRoute allowedRole="PATIENT"><MyAppointmentsPage /></ProtectedRoute>} />
           <Route path="patient/profile" element={<ProtectedRoute allowedRole="PATIENT"><PatientProfilePage /></ProtectedRoute>} />
+          <Route path="patient/medical-reports" element={<ProtectedRoute allowedRole="PATIENT"><MedicalReportsPage /></ProtectedRoute>} />
           <Route path="patient/payment" element={<ProtectedRoute allowedRole="PATIENT"><PaymentCheckoutPage /></ProtectedRoute>} />
 
           <Route path="doctor" element={<Navigate replace to="/doctor/dashboard" />} />

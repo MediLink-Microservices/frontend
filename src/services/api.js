@@ -72,6 +72,12 @@ export const patientAPI = {
   getPatientProfileByAuthUserId: (authUserId) => patientClient.get(`/patient/by-auth-user/${authUserId}`),
   getAllPatients: () => patientClient.get('/patient'),
   createOrUpdatePatientProfile: (data) => patientClient.post('/patient/profile', data),
+  uploadMedicalReport: (patientId, formData) => patientClient.post(`/patient/${patientId}/upload`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
+  deleteMedicalReport: (patientId, recordId) => patientClient.delete(`/patient/${patientId}/report/${recordId}`),
   getPatientAppointments: (id) => appointmentClient.get(`/appointments/patient/${id}`),
 }
 
