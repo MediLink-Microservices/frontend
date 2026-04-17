@@ -12,6 +12,8 @@ import {
   Stethoscope,
   UserRound,
   XCircle,
+  Video,
+  ExternalLink,
 } from 'lucide-react';
 import PatientPortalTabs from '../../components/patient/PatientPortalTabs';
 import { appointmentAPI, patientAPI } from '../../services/api';
@@ -54,6 +56,7 @@ const MyAppointmentsPage = () => {
   const storedUser = useMemo(() => getStoredUser(), []);
   const [patientProfile, setPatientProfile] = useState(null);
   const [appointments, setAppointments] = useState([]);
+  const [telemedicineSessions, setTelemedicineSessions] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -65,6 +68,26 @@ const MyAppointmentsPage = () => {
   const [actionLoading, setActionLoading] = useState(false);
 
   const patientId = patientProfile?.id || '';
+
+  const fetchTelemedicineSessions = async (patientIdValue) => {
+    try {
+      const response = await fetch(`http://localhost:8088/api/telemedicine/patient/${patientIdValue}`);
+      if (response.ok) {
+        const sessions = await response.json();
+        // Map sessions by appointmentDateTime for quick lookup
+        const sessionMap = {};
+        if (Array.isArray(sessions)) {
+          sessions.forEach(session => {
+            sessionMap[session.appointmentDateTime] = session;
+          });
+        }
+        setTelemedicineSessions(sessionMap);
+      }
+    } catch (err) {
+      console.error('Error fetching telemedicine sessions:', err);
+      // Silently fail - this is optional functionality
+    }
+  };
 
   const loadAppointments = async ({ silent = false } = {}) => {
     const authUserId = storedUser?.userId || storedUser?.id;
@@ -91,6 +114,9 @@ const MyAppointmentsPage = () => {
       const appointmentList = Array.isArray(appointmentsResponse.data) ? appointmentsResponse.data : [];
       appointmentList.sort((first, second) => new Date(second.appointmentDateTime) - new Date(first.appointmentDateTime));
       setAppointments(appointmentList);
+
+      // Fetch telemedicine sessions for this patient
+      await fetchTelemedicineSessions(profile.id);
     } catch (requestError) {
       setAppointments([]);
       setPatientProfile(null);
@@ -195,6 +221,19 @@ const MyAppointmentsPage = () => {
         || 'Failed to reschedule the appointment.'
       );
       setActionLoading(false);
+    }
+  };
+
+  const getTelemedicineLink = (appointment) => {
+    if (appointment.consultationType !== 'TELEMEDICINE') {
+      return null;
+    }
+    return telemedicineSessions[appointment.appointmentDateTime] || null;
+  };
+
+  const joinMeeting = (meeting) => {
+    if (meeting?.jitsiUrl) {
+      window.open(meeting.jitsiUrl, '_blank');
     }
   };
 
@@ -321,6 +360,18 @@ const MyAppointmentsPage = () => {
                           <span>Consultation: {appointment.consultationType}</span>
                         </p>
                       </div>
+
+                      {appointment.consultationType === 'TELEMEDICINE' && getTelemedicineLink(appointment) && (
+                        <button
+                          onClick={() => joinMeeting(getTelemedicineLink(appointment))}
+                          className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-semibold text-white transition hover:shadow-lg"
+                          type="button"
+                        >
+                          <Video className="h-4 w-4" />
+                          Join Meeting
+                          <ExternalLink className="h-3 w-3" />
+                        </button>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap gap-3 xl:max-w-sm xl:flex-col xl:items-end">

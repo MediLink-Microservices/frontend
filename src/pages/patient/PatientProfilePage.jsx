@@ -246,10 +246,7 @@ const PatientProfilePage = () => {
                     <label className="mb-2 block text-sm font-semibold text-medilink-dark" htmlFor="address">Address</label>
                     <textarea className="block min-h-28 w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100" id="address" name="address" onChange={handleChange} value={form.address} />
                   </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-medilink-dark" htmlFor="NIC">NIC</label>
-                    <input className="block w-full rounded-2xl border border-gray-200 bg-slate-50 px-4 py-3 text-sm text-gray-500 outline-none" id="NIC" name="NIC" readOnly value={form.NIC} />
-                  </div>
+                  
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-medilink-dark" htmlFor="dateOfBirth">Date of birth</label>
                     <input className="block w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-medilink-primary focus:ring-4 focus:ring-sky-100" id="dateOfBirth" name="dateOfBirth" onChange={handleChange} type="date" value={form.dateOfBirth} />
