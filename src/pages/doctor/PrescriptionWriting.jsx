@@ -52,7 +52,7 @@ const PrescriptionWriting = () => {
         fetchPatients()
     }, [])
 
-    // Filter patients based on search term with validation
+    // Filter patients based on search term (excluding NIC)
     const filteredPatients = patients.filter(patient => {
         if (!patient) return false
         const searchLower = searchTerm.toLowerCase()
@@ -60,7 +60,6 @@ const PrescriptionWriting = () => {
             (patient.firstName && patient.firstName.toLowerCase().includes(searchLower)) ||
             (patient.lastName && patient.lastName.toLowerCase().includes(searchLower)) ||
             (patient.patientId && patient.patientId.toLowerCase().includes(searchLower)) ||
-            (patient.nic && patient.nic.toLowerCase().includes(searchLower)) ||
             (patient.email && patient.email.toLowerCase().includes(searchLower))
         )
     })
@@ -217,7 +216,7 @@ const PrescriptionWriting = () => {
                                     <div className="mb-4">
                                         <input
                                             type="text"
-                                            placeholder="Search patients by name, ID, NIC, or email..."
+                                            placeholder="Search patients by name, ID, or email..."
                                             value={searchTerm}
                                             onChange={handleSearchChange}
                                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -254,7 +253,7 @@ const PrescriptionWriting = () => {
                                                                         {patient.firstName || 'Unknown'} {patient.lastName || ''}
                                                                     </h4>
                                                                     <p className="text-sm text-gray-600">
-                                                                        ID: {patient.patientId || 'N/A'} | NIC: {patient.nic || 'N/A'}
+                                                                        ID: {patient.patientId || 'N/A'}
                                                                     </p>
                                                                     <p className="text-sm text-gray-600">
                                                                         {patient.email || 'N/A'} | {patient.phone || 'N/A'}

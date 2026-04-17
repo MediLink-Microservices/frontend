@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DoctorSidebar from '../../components/layout/DoctorSidebar';
 import DoctorHeader from '../../components/layout/DoctorHeader';
+import { getStoredUser } from '../../utils/authStorage';
 import { 
   Calendar,
   Clock,
@@ -24,6 +25,7 @@ import {
 
 const SchedulePage = () => {
   const [user, setUser] = useState(null);
+  const [doctorId, setDoctorId] = useState('');
   const [schedules, setSchedules] = useState([]);
   const [hospitals, setHospitals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,11 +36,9 @@ const SchedulePage = () => {
   const [filterHospital, setFilterHospital] = useState('ALL');
   const [filterType, setFilterType] = useState('ALL');
 
-  const DOCTOR_ID = '69dda11899183b33e3e63c9f';
-
   // Form state
   const [formData, setFormData] = useState({
-    doctorId: DOCTOR_ID,
+    doctorId: '',
     hospitalId: '',
     day: '',
     startTime: '',
@@ -52,18 +52,58 @@ const SchedulePage = () => {
   const consultationTypes = ['IN_PERSON', 'TELEMEDICINE', 'BOTH'];
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-    fetchSchedules();
+    initializeDoctorSession();
     fetchHospitals();
   }, []);
 
-  const fetchSchedules = async () => {
+  const initializeDoctorSession = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:8083/api/schedules/doctor/${DOCTOR_ID}`);
+      const parsedUser = getStoredUser();
+      setUser(parsedUser);
+
+      const doctorsResponse = await fetch('http://localhost:8083/api/doctors');
+      if (!doctorsResponse.ok) {
+        throw new Error('Unable to load doctor profiles.');
+      }
+
+      const doctors = await doctorsResponse.json();
+      const normalizedName = parsedUser?.name?.replace(/^Dr\.?\s*/i, '').trim().toLowerCase();
+      const matchedDoctor = doctors.find((doctor) => {
+        const doctorEmail = doctor.email?.trim().toLowerCase();
+        const userEmail = parsedUser?.email?.trim().toLowerCase();
+        const doctorName = doctor.name?.trim().toLowerCase();
+
+        return (
+          (userEmail && doctorEmail && doctorEmail === userEmail) ||
+          (normalizedName && doctorName === normalizedName)
+        );
+      });
+
+      if (!matchedDoctor?.doctorId) {
+        throw new Error('Could not match the logged-in user to a doctor profile.');
+      }
+
+      setDoctorId(matchedDoctor.doctorId);
+      setFormData((current) => ({ ...current, doctorId: matchedDoctor.doctorId }));
+      await fetchSchedules(matchedDoctor.doctorId);
+    } catch (error) {
+      console.error('Error initializing doctor session:', error);
+      setSchedules([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSchedules = async (resolvedDoctorId = doctorId) => {
+    if (!resolvedDoctorId) {
+      setSchedules([]);
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:8083/api/schedules/doctor/${resolvedDoctorId}`);
       if (response.ok) {
         const data = await response.json();
         setSchedules(data);
@@ -132,7 +172,7 @@ const SchedulePage = () => {
 
   const resetForm = () => {
     setFormData({
-      doctorId: DOCTOR_ID,
+      doctorId,
       hospitalId: '',
       day: '',
       startTime: '',

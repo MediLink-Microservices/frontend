@@ -1,12 +1,8 @@
 import React from 'react'
+import BookAppointmentPage from './BookAppointmentPage'
 
 const PatientDashboard = () => {
-  return (
-    <div>
-      <h1>Patient Dashboard</h1>
-      <p>Patient dashboard content goes here</p>
-    </div>
-  )
+  return <BookAppointmentPage />
 }
 
 export default PatientDashboard

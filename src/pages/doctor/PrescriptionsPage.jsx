@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DoctorSidebar from '../../components/layout/DoctorSidebar';
 import DoctorHeader from '../../components/layout/DoctorHeader';
+import { getStoredUser } from '../../utils/authStorage';
 import { 
   FileText, 
   Plus, 
@@ -38,8 +39,10 @@ const PrescriptionsPage = () => {
   const [showNewPrescription, setShowNewPrescription] = useState(false);
   const [prescriptionId, setPrescriptionId] = useState('');
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [patients, setPatients] = useState([]);
+  const [filteredPatients, setFilteredPatients] = useState([]);
   const [patientSearchTerm, setPatientSearchTerm] = useState('');
-  const [searchByNIC, setSearchByNIC] = useState(false);
+  const [patientLoading, setPatientLoading] = useState(false);
   const [patientDetails, setPatientDetails] = useState({});
   const [prescriptionForm, setPrescriptionForm] = useState({
     diagnosis: '',
@@ -52,12 +55,14 @@ const PrescriptionsPage = () => {
   const DOCTOR_ID = '69dda11899183b33e3e63c9f';
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
+    setUser(getStoredUser());
     fetchPrescriptions();
+    fetchAllPatients();
   }, []);
+
+  useEffect(() => {
+    filterPatients();
+  }, [patients, patientSearchTerm]);
 
   useEffect(() => {
     filterPrescriptions();
@@ -113,29 +118,36 @@ const PrescriptionsPage = () => {
     return null;
   };
 
-  const fetchPatientByNIC = async (nic) => {
+  const fetchAllPatients = async () => {
     try {
-      const response = await fetch(`http://localhost:8086/api/patient/nic/${nic}`);
+      setPatientLoading(true);
+      const response = await fetch('http://localhost:8086/api/patient');
       if (response.ok) {
-        const patientData = await response.json();
-        setSelectedPatient(patientData);
-        return patientData;
+        const data = await response.json();
+        setPatients(data);
       }
     } catch (error) {
-      console.error('Error fetching patient by NIC:', error);
+      console.error('Error fetching patients:', error);
+    } finally {
+      setPatientLoading(false);
     }
-    return null;
   };
 
-  const handlePatientSearch = async () => {
-    if (patientSearchTerm.trim()) {
-      if (searchByNIC) {
-        await fetchPatientByNIC(patientSearchTerm.trim());
-      } else {
-        // For general search, you could implement patient search by name
-        console.log('General patient search not implemented yet');
-      }
+  const filterPatients = () => {
+    let filtered = [...patients];
+
+    if (patientSearchTerm) {
+      const searchLower = patientSearchTerm.toLowerCase();
+      filtered = filtered.filter(patient => 
+        patient.firstName?.toLowerCase().includes(searchLower) ||
+        patient.lastName?.toLowerCase().includes(searchLower) ||
+        patient.email?.toLowerCase().includes(searchLower) ||
+        patient.phone?.includes(patientSearchTerm) ||
+        patient.patientId?.toLowerCase().includes(searchLower)
+      );
     }
+
+    setFilteredPatients(filtered);
   };
 
   const getPatientName = (patientId) => {
@@ -491,55 +503,71 @@ ${prescription.notes}
                   
                   {!selectedPatient ? (
                     <div>
-                      <div className="flex flex-col lg:flex-row gap-4 mb-4">
-                        <div className="flex-1">
-                          <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input
-                              type="text"
-                              placeholder={searchByNIC ? "Enter patient NIC number..." : "Search for patient..."}
-                              value={patientSearchTerm}
-                              onChange={(e) => setPatientSearchTerm(e.target.value)}
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
-                                  handlePatientSearch();
-                                }
-                              }}
-                              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medilink-primary focus:border-transparent outline-none"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-3">
-                          <button
-                            onClick={() => {
-                              setSearchByNIC(!searchByNIC);
-                              setPatientSearchTerm('');
-                            }}
-                            className={`flex items-center space-x-2 px-4 py-2 border rounded-lg transition-colors ${
-                              searchByNIC
-                                ? 'bg-medilink-primary text-white border-medilink-primary'
-                                : 'border-gray-300 hover:bg-gray-50'
-                            }`}
-                          >
-                            <FileText className="w-4 h-4" />
-                            <span>{searchByNIC ? 'NIC Search' : 'General Search'}</span>
-                          </button>
-
-                          <button
-                            onClick={handlePatientSearch}
-                            disabled={!patientSearchTerm.trim()}
-                            className="flex items-center space-x-2 px-4 py-2 bg-medilink-success text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <Search className="w-4 h-4" />
-                            <span>Search Patient</span>
-                          </button>
+                      <div className="mb-4">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Search patients by name, ID, email, or phone..."
+                            value={patientSearchTerm}
+                            onChange={(e) => setPatientSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medilink-primary focus:border-transparent outline-none"
+                          />
                         </div>
                       </div>
                       
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                        <p className="text-sm text-yellow-800">
-                          <strong>Note:</strong> Please select a patient before issuing a prescription. Use NIC search for accurate patient identification.
+                      {patientLoading ? (
+                        <div className="text-center py-8">
+                          <p className="text-gray-600">Loading patients...</p>
+                        </div>
+                      ) : (
+                        <div className="max-h-64 overflow-y-auto bg-white rounded-lg border border-gray-200">
+                          {filteredPatients.length === 0 ? (
+                            <div className="text-center py-8">
+                              <p className="text-gray-600">No patients found</p>
+                              {patientSearchTerm && (
+                                <p className="text-sm text-gray-500 mt-2">
+                                  Try searching with different terms
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            filteredPatients.map((patient) => {
+                              if (!patient || !patient.id) return null
+                              return (
+                                <div
+                                  key={patient.id}
+                                  onClick={() => setSelectedPatient(patient)}
+                                  className="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                                >
+                                  <div className="flex justify-between items-center">
+                                    <div>
+                                      <h4 className="font-semibold text-gray-900">
+                                        {patient.firstName || 'Unknown'} {patient.lastName || ''}
+                                      </h4>
+                                      <p className="text-sm text-gray-600">
+                                        ID: {patient.patientId || 'N/A'}
+                                      </p>
+                                      <p className="text-sm text-gray-600">
+                                        {patient.email || 'N/A'} | {patient.phone || 'N/A'}
+                                      </p>
+                                    </div>
+                                    <div className="text-blue-600">
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4">
+                        <p className="text-sm text-blue-800">
+                          <strong>Note:</strong> Select a patient from the list above to issue a prescription.
                         </p>
                       </div>
                     </div>
@@ -554,7 +582,7 @@ ${prescription.notes}
                             <h4 className="font-semibold text-gray-900">
                               {selectedPatient.firstName} {selectedPatient.lastName}
                             </h4>
-                            <p className="text-sm text-gray-600">NIC: {selectedPatient.nic}</p>
+                            <p className="text-sm text-gray-600">Email: {selectedPatient.email}</p>
                           </div>
                         </div>
                         <button

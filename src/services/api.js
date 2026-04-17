@@ -1,113 +1,103 @@
 import axios from 'axios'
+import { clearAuthSession, getStoredAuthValue } from '../utils/authStorage'
 
-const API_BASE_URL = 'http://localhost:8081'
+const DEFAULT_HEADERS = {
+  'Content-Type': 'application/json',
+}
 
-// Create axios instance
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-})
+const createClient = (baseURL) => {
+  const client = axios.create({
+    baseURL,
+    timeout: 10000,
+    headers: DEFAULT_HEADERS,
+  })
 
-// Add request interceptor to include auth token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+  client.interceptors.request.use(
+    (config) => {
+      const token = getStoredAuthValue('token')
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
+      return config
+    },
+    (error) => Promise.reject(error)
+  )
+
+  client.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response?.status === 401) {
+        clearAuthSession()
+        window.location.href = '/login'
+      }
+      return Promise.reject(error)
     }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
+  )
 
-// Add response interceptor for error handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      localStorage.removeItem('token')
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  }
-)
+  return client
+}
 
-// Auth API
+const authClient = createClient('http://localhost:8081')
+const doctorClient = createClient('http://localhost:8083/api')
+const patientClient = createClient('http://localhost:8086/api')
+const appointmentClient = createClient('http://localhost:8084/api')
+const paymentClient = createClient('http://localhost:8085/api')
+const telemedicineClient = createClient('http://localhost:8088/api')
+
 export const authAPI = {
-  login: (credentials) => api.post('/auth/login', credentials),
-  register: (userData) => api.post('/auth/register', userData),
-  validateToken: (token) => api.get('/auth/validate', { headers: { Authorization: `Bearer ${token}` } }),
-  refreshToken: () => api.post('/auth/refresh'),
-  logout: () => api.post('/auth/logout'),
-
-  // Admin-specific auth endpoints (served by Auth-Service at /auth/admin/*)
-  adminRegister: (userData) => api.post('/auth/admin/register', userData),
-  adminStats: () => api.get('/auth/admin/stats'),
-  adminUsers: (role = 'ALL') => api.get(`/auth/admin/users?role=${role}`),
-  approveUser: (userId, approved) => api.put(`/auth/admin/users/${userId}/approve?approved=${approved}`),
-  updateUserDetails: (userId, updates) => api.put(`/auth/admin/users/${userId}`, updates),
+  login: (credentials) => authClient.post('/auth/login', credentials),
+  register: (userData) => authClient.post('/auth/register', userData),
+  adminRegister: (userData) => authClient.post('/auth/admin/register', userData),
+  validateToken: (token) => authClient.get('/auth/validate', { headers: { Authorization: `Bearer ${token}` } }),
+  refreshToken: (refreshToken) => authClient.post('/auth/refresh', null, { params: { refreshToken } }),
+  logout: () => authClient.post('/auth/logout'),
+  adminStats: () => authClient.get('/auth/admin/stats'),
+  adminUsers: (role = 'ALL') => authClient.get('/auth/admin/users', { params: { role } }),
+  approveUser: (userId, approved) => authClient.put(`/auth/admin/users/${userId}/approve`, null, { params: { approved } }),
+  updateUserDetails: (userId, updates) => authClient.put(`/auth/admin/users/${userId}`, updates),
 }
 
-// Doctor API
 export const doctorAPI = {
-  getAllDoctors: () => api.get('/doctors'),
-  getDoctorById: (id) => api.get(`/doctors/${id}`),
-  updateDoctorProfile: (id, data) => api.put(`/doctors/${id}`, data),
-  getDoctorSchedule: (id) => api.get(`/doctors/${id}/schedule`),
-  updateDoctorSchedule: (id, schedule) => api.put(`/doctors/${id}/schedule`, schedule),
-  getDoctorAppointments: (id) => api.get(`/doctors/${id}/appointments`),
-  updateAppointmentStatus: (appointmentId, status) => api.put(`/appointments/${appointmentId}/status`, { status }),
+  getAllDoctors: () => doctorClient.get('/doctors'),
+  getDoctorById: (id) => doctorClient.get(`/doctors/${id}`),
+  getDoctorsBySpecialty: (specialty) => doctorClient.get('/doctors/search', { params: { specialty } }),
+  createDoctor: (data) => doctorClient.post('/doctors', data),
+  getHospitals: () => doctorClient.get('/hospitals'),
+  updateDoctorProfile: (id, data) => doctorClient.put(`/doctors/${id}`, data),
+  getDoctorAppointments: (doctorId) => appointmentClient.get(`/appointments/doctor/${doctorId}`),
 }
 
-// Patient API
 export const patientAPI = {
-  getPatientProfile: (id) => api.get(`/patients/${id}`),
-  updatePatientProfile: (id, data) => api.put(`/patients/${id}`, data),
-  getPatientAppointments: (id) => api.get(`/patients/${id}/appointments`),
-  getPatientReports: (id) => api.get(`/patients/${id}/reports`),
-  getPatientPrescriptions: (id) => api.get(`/patients/${id}/prescriptions`),
+  getPatientProfile: (id) => patientClient.get(`/patient/${id}`),
+  getPatientProfileByAuthUserId: (authUserId) => patientClient.get(`/patient/by-auth-user/${authUserId}`),
+  getAllPatients: () => patientClient.get('/patient'),
+  createOrUpdatePatientProfile: (data) => patientClient.post('/patient/profile', data),
+  uploadMedicalReport: (patientId, formData) => patientClient.post(`/patient/${patientId}/upload`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
+  deleteMedicalReport: (patientId, recordId) => patientClient.delete(`/patient/${patientId}/report/${recordId}`),
+  getPatientAppointments: (id) => appointmentClient.get(`/appointments/patient/${id}`),
 }
 
-// Appointment API
 export const appointmentAPI = {
-  createAppointment: (data) => api.post('/appointments', data),
-  getAppointmentById: (id) => api.get(`/appointments/${id}`),
-  updateAppointment: (id, data) => api.put(`/appointments/${id}`, data),
-  cancelAppointment: (id) => api.delete(`/appointments/${id}`),
+  createAppointment: (data) => appointmentClient.post('/appointments/book', data),
+  getAllAppointments: () => appointmentClient.get('/appointments'),
+  getAppointmentById: (id) => appointmentClient.get(`/appointments/${id}`),
+  getPatientAppointments: (id) => appointmentClient.get(`/appointments/patient/${id}`),
+  updateAppointmentStatus: (id, status) => appointmentClient.put(`/appointments/${id}/status`, null, { params: { status } }),
+  updateAppointmentTime: (id, newDateTime) => appointmentClient.put(`/appointments/${id}/modify`, null, { params: { newDateTime } }),
+  cancelAppointment: (id, reason) => appointmentClient.delete(`/appointments/${id}/cancel`, { params: { reason } }),
 }
 
-// Payment API
 export const paymentAPI = {
-  processPayment: (data) => api.post('/payments/process', data),
-  getPaymentStatus: (paymentId) => api.get(`/payments/${paymentId}/status`),
+  processPayment: (data) => paymentClient.post('/payments/process', data),
+  getPaymentByAppointmentId: (appointmentId) => paymentClient.get(`/payments/appointment/${appointmentId}`),
 }
 
-// Admin API
-export const adminAPI = {
-  getUsers: () => api.get('/admin/users'),
-  updateUserStatus: (userId, status) => api.put(`/admin/users/${userId}/status`, { status }),
-  getPendingDoctors: () => api.get('/admin/doctors/pending'),
-  verifyDoctor: (doctorId, status) => api.put(`/admin/doctors/${doctorId}/verify`, { status }),
-  getAnalytics: () => api.get('/admin/analytics'),
-}
-
-// Telemedicine API
 export const telemedicineAPI = {
-  startConsultation: (appointmentId) => api.post(`/telemedicine/consultation/${appointmentId}/start`),
-  endConsultation: (appointmentId) => api.post(`/telemedicine/consultation/${appointmentId}/end`),
-  getConsultationLink: (appointmentId) => api.get(`/telemedicine/consultation/${appointmentId}/link`),
+  createConsultation: (data) => telemedicineClient.post('/telemedicine/create', data),
 }
 
-// AI Symptom Checker API
-export const aiAPI = {
-  analyzeSymptoms: (symptoms) => api.post('/ai/symptom-checker', { symptoms }),
-  getRecommendations: (analysisId) => api.get(`/ai/recommendations/${analysisId}`),
-}
-
-export default api
+export default doctorClient

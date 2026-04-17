@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DoctorSidebar from '../../components/layout/DoctorSidebar';
 import DoctorHeader from '../../components/layout/DoctorHeader';
+import { getStoredUser } from '../../utils/authStorage';
 import { 
   Video, 
   Calendar, 
@@ -27,9 +28,11 @@ import {
 
 const TelemedicinePage = () => {
   const [user, setUser] = useState(null);
+  const [doctorId, setDoctorId] = useState('');
   const [telemedicineSessions, setTelemedicineSessions] = useState([]);
   const [filteredSessions, setFilteredSessions] = useState([]);
   const [patients, setPatients] = useState({});
+  const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,24 +41,63 @@ const TelemedicinePage = () => {
   const [dateFilter, setDateFilter] = useState('ALL');
   const [selectedSession, setSelectedSession] = useState(null);
 
-  const DOCTOR_ID = '69dda11899183b33e3e63c9f';
-
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-    fetchTelemedicineSessions();
+    initializeDoctorSession();
   }, []);
 
   useEffect(() => {
     filterSessions();
   }, [telemedicineSessions, searchTerm, statusFilter, dateFilter]);
 
-  const fetchTelemedicineSessions = async () => {
+  const initializeDoctorSession = async () => {
+    try {
+      const parsedUser = getStoredUser();
+      setUser(parsedUser);
+
+      const doctorsResponse = await fetch('http://localhost:8083/api/doctors');
+      if (!doctorsResponse.ok) {
+        throw new Error('Unable to load doctor profiles.');
+      }
+
+      const doctors = await doctorsResponse.json();
+      const matchedDoctor = doctors.find((doctor) => {
+        const doctorEmail = doctor.email?.trim().toLowerCase();
+        const userEmail = parsedUser?.email?.trim().toLowerCase();
+        const doctorName = doctor.name?.trim().toLowerCase();
+        const userName = parsedUser?.name?.trim().toLowerCase();
+
+        return (doctorEmail && userEmail && doctorEmail === userEmail)
+          || (doctorName && userName && doctorName === userName);
+      });
+
+      if (!matchedDoctor?.doctorId) {
+        throw new Error('Could not match the logged-in user to a doctor profile.');
+      }
+
+      setDoctorId(matchedDoctor.doctorId);
+      setLoadError('');
+      await fetchTelemedicineSessions(matchedDoctor.doctorId);
+    } catch (error) {
+      console.error('Error initializing doctor telemedicine session:', error);
+      setLoadError(error.message || 'Unable to load telemedicine sessions right now.');
+      setTelemedicineSessions([]);
+      setFilteredSessions([]);
+      setLoading(false);
+    }
+  };
+
+  const fetchTelemedicineSessions = async (resolvedDoctorId = doctorId) => {
+    if (!resolvedDoctorId) {
+      setTelemedicineSessions([]);
+      setFilteredSessions([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:8088/api/telemedicine/doctor/${DOCTOR_ID}`);
+      setLoadError('');
+      const response = await fetch(`http://localhost:8088/api/telemedicine/doctor/${resolvedDoctorId}`);
       if (response.ok) {
         const data = await response.json();
         setTelemedicineSessions(data);
@@ -79,9 +121,12 @@ const TelemedicinePage = () => {
         }, {});
         
         setPatients(patientData);
+      } else {
+        setLoadError('Telemedicine service returned an error while loading sessions.');
       }
     } catch (error) {
       console.error('Error fetching telemedicine sessions:', error);
+      setLoadError('Telemedicine service is unavailable right now. Please make sure the telemedicine-service is running on port 8088.');
     } finally {
       setLoading(false);
     }
@@ -293,8 +338,12 @@ const TelemedicinePage = () => {
           ) : filteredSessions.length === 0 ? (
             <div className="bg-white rounded-xl shadow-medical border border-gray-200 p-12 text-center">
               <Video className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No telemedicine sessions found</h3>
-              <p className="text-gray-600">Try adjusting your search or filters</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {loadError ? 'Telemedicine service unavailable' : 'No telemedicine sessions found'}
+              </h3>
+              <p className="text-gray-600">
+                {loadError || 'Try adjusting your search or filters'}
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -327,7 +376,7 @@ const TelemedicinePage = () => {
                           </div>
                         </div>
                         <div className="flex items-center space-x-3">
-                          {session.status === 'ACTIVE' && session.jitsiUrl && (
+                          {session.jitsiUrl && (
                             <button
                               onClick={() => joinVideoCall(session.jitsiUrl)}
                               className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"

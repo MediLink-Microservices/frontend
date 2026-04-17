@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Profile from "../../pages/auth/Profile";
+import { clearAuthSession } from "../../utils/authStorage";
 
 const PAGE_TITLES = {
   overview:  { title: "Overview",           subtitle: "Welcome back to your dashboard" },
+  appointments: { title: "Appointments",    subtitle: "Review all patient bookings across the platform" },
   doctors:   { title: "Doctor Management",  subtitle: "Create and manage doctor accounts" },
   users:     { title: "User Management",    subtitle: "Manage admins and patients" },
   analytics: { title: "Platform Analytics", subtitle: "Insights and platform statistics" },
@@ -16,7 +18,7 @@ export default function AdminNavbar({ activePage, user }) {
   const [showMenu, setShowMenu] = useState(false);
 
   const handleLogout = () => {
-    localStorage.clear();
+    clearAuthSession();
     navigate("/login");
   };
 

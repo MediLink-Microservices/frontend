@@ -1,8 +1,11 @@
 const NAV_ITEMS = [
+  
   { id: "overview",   label: "Overview",            icon: "📊" },
   { id: "doctors",    label: "Doctor Management",   icon: "👨‍⚕️" },
   { id: "users",      label: "User Management",     icon: "👥" },
+  { id: "appointments", label: "Appointments", icon: "\uD83D\uDCC5" },
   { id: "analytics",  label: "Platform Analytics",  icon: "📈" },
+  
 ];
 
 export default function AdminSidebar({ activePage, setActivePage, collapsed, setCollapsed }) {

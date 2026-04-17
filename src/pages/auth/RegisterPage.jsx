@@ -1,11 +1,10 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { authAPI } from "../../services/api";
 
-// Backend returns: { status, message, errorCode, details: { fieldName: "error msg" } }
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { authAPI, doctorAPI, patientAPI } from "../../services/api";
+
 function getErrorMessage(error) {
   const data = error?.response?.data;
-  // Validation errors come as details Map<String,String>
   if (data?.details && typeof data.details === "object" && !Array.isArray(data.details)) {
     const msgs = Object.values(data.details).filter(Boolean);
     if (msgs.length > 0) return msgs.join(" | ");
@@ -14,38 +13,133 @@ function getErrorMessage(error) {
 }
 
 const PASSWORD_REGEX = /^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=])(?=\S+$).{8,}$/;
+const PHONE_REGEX = /^[+]?[0-9]{10,15}$/;
 
 const ROLES = [
-  { value: "PATIENT", label: "Patient", icon: "🧑‍⚕️", desc: "Book appointments & manage health" },
+  { value: "PATIENT", label: "Patient", desc: "Book appointments and manage health records." },
+  { value: "DOCTOR", label: "Doctor", desc: "Create a professional account and manage consultations." },
 ];
+
+const DOCTOR_SPECIALTIES = [
+  "GENERAL_PRACTICE",
+  "CARDIOLOGY",
+  "NEUROLOGY",
+  "PEDIATRICS",
+  "ORTHOPEDICS",
+  "DERMATOLOGY",
+  "PSYCHIATRY",
+  "GYNECOLOGY",
+  "OPHTHALMOLOGY",
+];
+
+const initialFormState = {
+  name: "",
+  email: "",
+  password: "",
+  phoneNumber: "",
+  address: "",
+  role: "PATIENT",
+  licenseNumber: "",
+  yearsOfExperience: "",
+  specialty: "",
+  hospitalIds: [],
+  fee: "",
+  availableForTelemedicine: false,
+};
+
+function splitName(name = "") {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+
+function strengthForPassword(password) {
+  if (!password) return { level: 0, label: "", color: "#334155" };
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[a-z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[@#$%^&+=]/.test(password)) score++;
+  if (score <= 2) return { level: score, label: "Weak", color: "#ef4444" };
+  if (score === 3) return { level: score, label: "Fair", color: "#f59e0b" };
+  if (score === 4) return { level: score, label: "Good", color: "#0ea5e9" };
+  return { level: score, label: "Strong", color: "#10b981" };
+}
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    phoneNumber: "",
-    role: "PATIENT",
-  });
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [form, setForm] = useState(initialFormState);
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [step, setStep] = useState(1); // 1 = personal info, 2 = account setup
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [hospitals, setHospitals] = useState([]);
+  const [hospitalsLoading, setHospitalsLoading] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((curr) => ({ ...curr, [name]: value }));
+  useEffect(() => {
+    let active = true;
+
+    async function loadHospitals() {
+      if (form.role !== "DOCTOR") return;
+      setHospitalsLoading(true);
+      try {
+        const res = await doctorAPI.getHospitals();
+        if (!active) return;
+        setHospitals(res.data || []);
+      } catch {
+        if (active) setHospitals([]);
+      } finally {
+        if (active) setHospitalsLoading(false);
+      }
+    }
+
+    loadHospitals();
+    return () => {
+      active = false;
+    };
+  }, [form.role]);
+
+  const passwordStrength = useMemo(() => strengthForPassword(form.password), [form.password]);
+
+  const handleChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    setForm((current) => ({
+      ...current,
+      [name]: type === "checkbox" ? checked : value,
+    }));
     if (error) setError("");
   };
 
   const handleRoleSelect = (role) => {
-    setForm((curr) => ({ ...curr, role }));
+    setForm((current) => ({
+      ...current,
+      role,
+      hospitalIds: role === "DOCTOR" ? current.hospitalIds : [],
+      licenseNumber: role === "DOCTOR" ? current.licenseNumber : "",
+      yearsOfExperience: role === "DOCTOR" ? current.yearsOfExperience : "",
+      specialty: role === "DOCTOR" ? current.specialty : "",
+      fee: role === "DOCTOR" ? current.fee : "",
+      availableForTelemedicine: role === "DOCTOR" ? current.availableForTelemedicine : false,
+    }));
   };
 
-  const handleNext = (e) => {
-    e.preventDefault();
+  const handleHospitalToggle = (hospitalId) => {
+    setForm((current) => {
+      const alreadySelected = current.hospitalIds.includes(hospitalId);
+      return {
+        ...current,
+        hospitalIds: alreadySelected
+          ? current.hospitalIds.filter((id) => id !== hospitalId)
+          : [...current.hospitalIds, hospitalId],
+      };
+    });
+  };
+
+  const handleNext = (event) => {
+    event.preventDefault();
     if (!form.name.trim() || form.name.trim().length < 2) {
       setError("Name must be at least 2 characters.");
       return;
@@ -54,6 +148,15 @@ export default function RegisterPage() {
       setError("Please enter your email address.");
       return;
     }
+    if (!form.phoneNumber.trim()) {
+      setError("Please enter your phone number.");
+      return;
+    }
+    if (!PHONE_REGEX.test(form.phoneNumber.trim())) {
+      setError("Phone number must be 10 to 15 digits and may start with +.");
+      return;
+    }
+
     setError("");
     setStep(2);
   };
@@ -63,48 +166,103 @@ export default function RegisterPage() {
     setStep(1);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const validateDoctorFields = () => {
+    if (!form.licenseNumber.trim()) return "Doctor registration requires a license number.";
+    if (!form.specialty) return "Please choose a specialty.";
+    if (!form.yearsOfExperience || Number(form.yearsOfExperience) < 0) {
+      return "Please enter valid years of experience.";
+    }
+    if (!form.fee || Number(form.fee) <= 0) {
+      return "Please enter a consultation fee greater than 0.";
+    }
+    if (form.hospitalIds.length === 0) {
+      return "Please select at least one hospital or medical location.";
+    }
+    return "";
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError("");
     setSuccess("");
 
-    // Client-side password validation (mirrors backend @Pattern)
     if (!PASSWORD_REGEX.test(form.password)) {
       setError("Password must be 8+ characters and include uppercase, lowercase, a number, and a special character from: @ # $ % ^ & + =");
       return;
     }
 
+    if (form.role === "PATIENT" && !form.address.trim()) {
+      setError("Please enter your address.");
+      return;
+    }
+
+    if (form.role === "DOCTOR") {
+      const doctorValidationError = validateDoctorFields();
+      if (doctorValidationError) {
+        setError(doctorValidationError);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
-      const payload = { ...form };
-      if (!payload.phoneNumber.trim()) delete payload.phoneNumber;
+      const authPayload = {
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        role: form.role,
+        phoneNumber: form.phoneNumber.trim(),
+      };
 
-      const res = await authAPI.register(payload);
-      setSuccess(res.data?.message || "Account created successfully! Redirecting to login...");
+      const authResponse = await authAPI.register(authPayload);
+      const registeredUserId = authResponse.data?.data?.userId;
+
+      if (form.role === "PATIENT" && registeredUserId) {
+        const { firstName, lastName } = splitName(form.name);
+        await patientAPI.createOrUpdatePatientProfile({
+          authUserId: registeredUserId,
+          NIC: "",
+          firstName,
+          lastName,
+          email: form.email,
+          phone: form.phoneNumber || "",
+          address: form.address || "",
+          dateOfBirth: "",
+          medicalReports: [],
+        });
+      }
+
+      if (form.role === "PATIENT" && !form.address.trim()) {
+      setError("Please enter your address.");
+      return;
+    }
+
+    if (form.role === "DOCTOR") {
+        await doctorAPI.createDoctor({
+          name: form.name,
+          email: form.email,
+          phone: form.phoneNumber,
+          licenseNumber: form.licenseNumber,
+          yearsOfExperience: Number(form.yearsOfExperience),
+          specialty: form.specialty,
+          hospitalIds: form.hospitalIds,
+          fee: Number(form.fee),
+          availableForTelemedicine: form.availableForTelemedicine,
+        });
+      }
+
+      setSuccess(
+        form.role === "DOCTOR"
+          ? "Doctor account created. Your professional profile is saved and the account can now go through approval."
+          : "Account created successfully! Redirecting to login..."
+      );
       setTimeout(() => navigate("/login"), 1800);
-    } catch (err) {
-      setError(getErrorMessage(err));
+    } catch (submitError) {
+      setError(getErrorMessage(submitError));
     } finally {
       setLoading(false);
     }
   };
-
-  // Password strength
-  const getPasswordStrength = (pwd) => {
-    if (!pwd) return { level: 0, label: "", color: "#334155" };
-    let score = 0;
-    if (pwd.length >= 8) score++;
-    if (/[A-Z]/.test(pwd)) score++;
-    if (/[a-z]/.test(pwd)) score++;
-    if (/[0-9]/.test(pwd)) score++;
-    if (/[@#$%^&+=]/.test(pwd)) score++;
-    if (score <= 2) return { level: score, label: "Weak", color: "#ef4444" };
-    if (score === 3) return { level: score, label: "Fair", color: "#f59e0b" };
-    if (score === 4) return { level: score, label: "Good", color: "#0ea5e9" };
-    return { level: score, label: "Strong", color: "#10b981" };
-  };
-
-  const pwdStrength = getPasswordStrength(form.password);
 
   return (
     <div style={styles.page}>
@@ -112,8 +270,7 @@ export default function RegisterPage() {
       <div style={styles.blob2} />
       <div style={styles.blob3} />
 
-      <div style={styles.container}>
-        {/* Left Panel */}
+      <div style={styles.container} className="register-container">
         <div style={styles.leftPanel}>
           <div style={styles.logo}>
             <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
@@ -124,25 +281,26 @@ export default function RegisterPage() {
           </div>
 
           <div style={styles.heroContent}>
-            <h2 style={styles.heroTitle}>Join MediLink<br />Today</h2>
+            <h2 style={styles.heroTitle}>Join MediLink Today</h2>
             <p style={styles.heroSubtitle}>
-              Create your free account and start managing your healthcare journey with ease.
+              Create your account and set up the right profile for your healthcare journey or doctor practice.
             </p>
           </div>
 
-          {/* Step indicator */}
           <div style={styles.stepIndicator}>
             <div style={styles.stepRow}>
               <div style={{ ...styles.stepDot, background: "#fff", boxShadow: "0 0 0 3px rgba(255,255,255,0.3)" }}>
-                {step > 1 ? "✓" : "1"}
+                {step > 1 ? "OK" : "1"}
               </div>
               <div style={{ ...styles.stepLine, background: step > 1 ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)" }} />
-              <div style={{
-                ...styles.stepDot,
-                background: step === 2 ? "#fff" : "rgba(255,255,255,0.3)",
-                color: step === 2 ? "#6366f1" : "rgba(255,255,255,0.7)",
-                boxShadow: step === 2 ? "0 0 0 3px rgba(255,255,255,0.3)" : "none",
-              }}>
+              <div
+                style={{
+                  ...styles.stepDot,
+                  background: step === 2 ? "#fff" : "rgba(255,255,255,0.3)",
+                  color: step === 2 ? "#6366f1" : "rgba(255,255,255,0.7)",
+                  boxShadow: step === 2 ? "0 0 0 3px rgba(255,255,255,0.3)" : "none",
+                }}
+              >
                 2
               </div>
             </div>
@@ -154,45 +312,32 @@ export default function RegisterPage() {
 
           <div style={styles.features}>
             {[
-              { icon: "🏥", text: "1000+ Doctors Available" },
-              { icon: "📋", text: "Digital Health Records" },
-              { icon: "🔐", text: "100% Data Privacy" },
-            ].map((f) => (
-              <div key={f.text} style={styles.featureItem}>
-                <span style={styles.featureIcon}>{f.icon}</span>
-                <span style={styles.featureText}>{f.text}</span>
+              "Doctor onboarding with professional details",
+              "Patient records linked to login identity",
+              "Secure appointments, payment, and telemedicine",
+            ].map((text) => (
+              <div key={text} style={styles.featureItem}>
+                <span style={styles.featureText}>{text}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Right Panel */}
         <div style={styles.rightPanel}>
           <div style={styles.formCard}>
             <div style={styles.formHeader}>
-              <h1 style={styles.formTitle}>
-                {step === 1 ? "Create account" : "Set up credentials"}
-              </h1>
+              <h1 style={styles.formTitle}>{step === 1 ? "Create account" : "Set up credentials"}</h1>
               <p style={styles.formSubtitle}>
-                {step === 1
-                  ? "Step 1 of 2 — Enter your personal details"
-                  : "Step 2 of 2 — Choose your role & password"}
+                {step === 1 ? "Step 1 of 2 - Enter your personal details" : "Step 2 of 2 - Choose your role and complete setup"}
               </p>
             </div>
 
-            {/* Step 1 */}
             {step === 1 && (
               <form onSubmit={handleNext} style={styles.form}>
-                {/* Name */}
                 <div style={styles.fieldGroup}>
                   <label style={styles.label} htmlFor="reg-name">Full Name</label>
                   <div style={styles.inputWrapper}>
-                    <span style={styles.inputIcon}>
-                      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                      </svg>
-                    </span>
+                    <span style={styles.inputIcon}>User</span>
                     <input
                       id="reg-name"
                       style={styles.input}
@@ -202,22 +347,14 @@ export default function RegisterPage() {
                       onChange={handleChange}
                       placeholder="John Doe"
                       required
-                      minLength={2}
-                      autoComplete="name"
                     />
                   </div>
                 </div>
 
-                {/* Email */}
                 <div style={styles.fieldGroup}>
                   <label style={styles.label} htmlFor="reg-email">Email Address</label>
                   <div style={styles.inputWrapper}>
-                    <span style={styles.inputIcon}>
-                      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                        <polyline points="22,6 12,13 2,6" />
-                      </svg>
-                    </span>
+                    <span style={styles.inputIcon}>Mail</span>
                     <input
                       id="reg-email"
                       style={styles.input}
@@ -227,86 +364,209 @@ export default function RegisterPage() {
                       onChange={handleChange}
                       placeholder="name@example.com"
                       required
-                      autoComplete="email"
                     />
                   </div>
                 </div>
 
-                {/* Phone */}
-                <div style={styles.fieldGroup}>
-                  <label style={styles.label} htmlFor="reg-phone">
-                    Phone Number <span style={styles.optionalBadge}>optional</span>
-                  </label>
-                  <div style={styles.inputWrapper}>
-                    <span style={styles.inputIcon}>
-                      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.39 2 2 0 0 1 3.59 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.77a16 16 0 0 0 6.29 6.29l1.62-1.62a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-                      </svg>
-                    </span>
-                    <input
-                      id="reg-phone"
-                      style={styles.input}
-                      type="tel"
-                      name="phoneNumber"
-                      value={form.phoneNumber}
-                      onChange={handleChange}
-                      placeholder="0771234567"
-                      autoComplete="tel"
-                    />
+                <div style={styles.fieldRow}>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label} htmlFor="reg-phone">Phone Number</label>
+                    <div style={styles.inputWrapper}>
+                      <span style={styles.inputIcon}>Phone</span>
+                      <input
+                        id="reg-phone"
+                        style={styles.input}
+                        type="tel"
+                        name="phoneNumber"
+                        value={form.phoneNumber}
+                        onChange={handleChange}
+                        placeholder="+94771234567"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label} htmlFor="reg-address">
+                      Address <span style={styles.optionalBadge}>optional for doctors</span>
+                    </label>
+                    <div style={styles.inputWrapper}>
+                      <span style={styles.inputIcon}>Addr</span>
+                      <input
+                        id="reg-address"
+                        style={styles.input}
+                        type="text"
+                        name="address"
+                        value={form.address}
+                        onChange={handleChange}
+                        placeholder="Street, city"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {error && (
-                  <div style={styles.errorBox}>
-                    <span>⚠️</span>
-                    <span>{error}</span>
-                  </div>
-                )}
+                {error && <div style={styles.errorBox}>{error}</div>}
 
-                <button type="submit" style={styles.submitBtn} id="register-next">
-                  Continue →
-                </button>
+                <div style={styles.btnRow}>
+                  <div />
+                  <button type="submit" style={styles.submitBtn}>Continue</button>
+                </div>
               </form>
             )}
 
-            {/* Step 2 */}
             {step === 2 && (
               <form onSubmit={handleSubmit} style={styles.form}>
-                {/* Role */}
                 <div style={styles.fieldGroup}>
                   <label style={styles.label}>I am a...</label>
                   <div style={styles.roleGrid}>
-                    {ROLES.map((r) => (
-                      <button
-                        key={r.value}
-                        type="button"
-                        onClick={() => handleRoleSelect(r.value)}
-                        style={{
-                          ...styles.roleCard,
-                          ...(form.role === r.value ? styles.roleCardActive : {}),
-                        }}
-                      >
-                        <span style={styles.roleIcon}>{r.icon}</span>
-                        <span style={styles.roleLabel}>{r.label}</span>
-                        <span style={styles.roleDesc}>{r.desc}</span>
-                        {form.role === r.value && (
-                          <span style={styles.roleCheck}>✓</span>
-                        )}
-                      </button>
-                    ))}
+                    {ROLES.map((role) => {
+                      const active = form.role === role.value;
+                      return (
+                        <button
+                          key={role.value}
+                          type="button"
+                          style={{ ...styles.roleCard, ...(active ? styles.roleCardActive : {}) }}
+                          onClick={() => handleRoleSelect(role.value)}
+                        >
+                          <div style={styles.roleLabel}>{role.label}</div>
+                          <div style={styles.roleDesc}>{role.desc}</div>
+                          {active && <span style={styles.roleCheck}>Selected</span>}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Password */}
+                {form.role === "DOCTOR" && (
+                  <>
+                    <div style={styles.sectionBanner}>
+                      Doctor profile details
+                      <span style={styles.sectionBannerText}>These details are needed to create the doctor-service profile together with the auth account.</span>
+                    </div>
+
+                    <div style={styles.fieldRow}>
+                      <div style={styles.fieldGroup}>
+                        <label style={styles.label} htmlFor="reg-license">License Number</label>
+                        <div style={styles.inputWrapper}>
+                          <span style={styles.inputIcon}>ID</span>
+                          <input
+                            id="reg-license"
+                            style={styles.input}
+                            type="text"
+                            name="licenseNumber"
+                            value={form.licenseNumber}
+                            onChange={handleChange}
+                            placeholder="DOC123456"
+                          />
+                        </div>
+                      </div>
+
+                      <div style={styles.fieldGroup}>
+                        <label style={styles.label} htmlFor="reg-specialty">Specialty</label>
+                        <div style={styles.inputWrapper}>
+                          <span style={styles.inputIcon}>Spec</span>
+                          <select
+                            id="reg-specialty"
+                            style={{ ...styles.input, ...styles.select }}
+                            name="specialty"
+                            value={form.specialty}
+                            onChange={handleChange}
+                          >
+                            <option value="">Select specialty</option>
+                            {DOCTOR_SPECIALTIES.map((specialty) => (
+                              <option key={specialty} value={specialty}>
+                                {specialty.replaceAll("_", " ")}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={styles.fieldRow}>
+                      <div style={styles.fieldGroup}>
+                        <label style={styles.label} htmlFor="reg-experience">Years of Experience</label>
+                        <div style={styles.inputWrapper}>
+                          <span style={styles.inputIcon}>Exp</span>
+                          <input
+                            id="reg-experience"
+                            style={styles.input}
+                            type="number"
+                            min="0"
+                            name="yearsOfExperience"
+                            value={form.yearsOfExperience}
+                            onChange={handleChange}
+                            placeholder="5"
+                          />
+                        </div>
+                      </div>
+
+                      <div style={styles.fieldGroup}>
+                        <label style={styles.label} htmlFor="reg-fee">Consultation Fee (LKR)</label>
+                        <div style={styles.inputWrapper}>
+                          <span style={styles.inputIcon}>Fee</span>
+                          <input
+                            id="reg-fee"
+                            style={styles.input}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            name="fee"
+                            value={form.fee}
+                            onChange={handleChange}
+                            placeholder="2500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <label style={styles.checkboxCard}>
+                      <input
+                        type="checkbox"
+                        name="availableForTelemedicine"
+                        checked={form.availableForTelemedicine}
+                        onChange={handleChange}
+                      />
+                      <span>Available for telemedicine consultations</span>
+                    </label>
+
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Hospital or medical locations</label>
+                      <div style={styles.hospitalPanel}>
+                        {hospitalsLoading && <div style={styles.helperText}>Loading hospitals...</div>}
+                        {!hospitalsLoading && hospitals.length === 0 && (
+                          <div style={styles.helperText}>No hospitals available yet. Add a hospital first, then create the doctor account.</div>
+                        )}
+                        {!hospitalsLoading && hospitals.length > 0 && (
+                          <div style={styles.hospitalGrid}>
+                            {hospitals.map((hospital) => {
+                              const hospitalId = hospital.hospitalId || hospital.id;
+                              const active = form.hospitalIds.includes(hospitalId);
+                              return (
+                                <button
+                                  key={hospitalId}
+                                  type="button"
+                                  style={{ ...styles.hospitalCard, ...(active ? styles.hospitalCardActive : {}) }}
+                                  onClick={() => handleHospitalToggle(hospitalId)}
+                                >
+                                  <span style={styles.hospitalName}>{hospital.name}</span>
+                                  <span style={styles.hospitalMeta}>
+                                    {[hospital.city, hospital.province].filter(Boolean).join(", ") || "Location available"}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div style={styles.fieldGroup}>
                   <label style={styles.label} htmlFor="reg-password">Password</label>
                   <div style={styles.inputWrapper}>
-                    <span style={styles.inputIcon}>
-                      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                      </svg>
-                    </span>
+                    <span style={styles.inputIcon}>Lock</span>
                     <input
                       id="reg-password"
                       style={styles.input}
@@ -316,104 +576,57 @@ export default function RegisterPage() {
                       onChange={handleChange}
                       placeholder="Min. 8 chars, A-Z, 0-9, @#$..."
                       required
-                      autoComplete="new-password"
                     />
                     <button
                       type="button"
                       style={styles.eyeBtn}
-                      onClick={() => setShowPassword((v) => !v)}
-                      tabIndex={-1}
+                      onClick={() => setShowPassword((current) => !current)}
                     >
-                      {showPassword ? "🙈" : "👁️"}
+                      {showPassword ? "Hide" : "Show"}
                     </button>
                   </div>
 
-                  {/* Strength bar */}
-                  {form.password && (
-                    <div style={styles.strengthWrapper}>
-                      <div style={styles.strengthBar}>
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <div
-                            key={i}
-                            style={{
-                              ...styles.strengthSegment,
-                              background: i <= pwdStrength.level ? pwdStrength.color : "#1e293b",
-                            }}
-                          />
-                        ))}
-                      </div>
-                      <span style={{ ...styles.strengthLabel, color: pwdStrength.color }}>
-                        {pwdStrength.label}
-                      </span>
+                  <div style={styles.strengthWrapper}>
+                    <div style={styles.strengthBar}>
+                      {[1, 2, 3, 4, 5].map((segment) => (
+                        <div
+                          key={segment}
+                          style={{
+                            ...styles.strengthSegment,
+                            background: passwordStrength.level >= segment ? passwordStrength.color : "#243047",
+                          }}
+                        />
+                      ))}
                     </div>
-                  )}
+                    <span style={{ ...styles.strengthLabel, color: passwordStrength.color }}>
+                      {passwordStrength.label}
+                    </span>
+                  </div>
 
                   <p style={styles.hint}>
-                    Must include: 8+ chars, uppercase (A-Z), lowercase (a-z), number (0-9), and a special character from: <strong style={{color:'#94a3b8'}}>@  #  $  %  ^  &  +  =</strong>
+                    Must include: 8+ chars, uppercase, lowercase, number, and one special character from @ # $ % ^ & + =
                   </p>
                 </div>
 
-                {error && (
-                  <div style={styles.errorBox}>
-                    <span>⚠️</span>
-                    <span>{error}</span>
-                  </div>
-                )}
-                {success && (
-                  <div style={styles.successBox}>
-                    <span>✅</span>
-                    <span>{success}</span>
-                  </div>
-                )}
+                {error && <div style={styles.errorBox}>{error}</div>}
+                {success && <div style={styles.successBox}>{success}</div>}
 
                 <div style={styles.btnRow}>
-                  <button
-                    type="button"
-                    onClick={handleBack}
-                    style={styles.backBtn}
-                    disabled={loading}
-                  >
-                    ← Back
-                  </button>
-                  <button
-                    type="submit"
-                    style={{ ...styles.submitBtn, flex: 1, opacity: loading ? 0.75 : 1 }}
-                    disabled={loading}
-                    id="register-submit"
-                  >
+                  <button type="button" onClick={handleBack} style={styles.backBtn}>Back</button>
+                  <button type="submit" style={styles.submitBtn} disabled={loading}>
                     {loading && <span style={styles.spinner} />}
-                    {loading ? "Creating account..." : "Create Account"}
+                    {loading ? "Creating..." : "Create Account"}
                   </button>
                 </div>
               </form>
             )}
 
             <p style={styles.switchText}>
-              Already have an account?{" "}
-              <Link to="/login" style={styles.switchLink}>
-                Sign in →
-              </Link>
+              Already have an account? <Link to="/login" style={styles.switchLink}>Sign in</Link>
             </p>
           </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes blob {
-          0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
-          50% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        input:focus { outline: none; border-color: #0ea5e9 !important; box-shadow: 0 0 0 3px rgba(14,165,233,0.15); }
-        button[type=submit]:hover:not(:disabled), #register-next:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 8px 25px rgba(14,165,233,0.4);
-        }
-        button[type=submit]:active:not(:disabled) { transform: translateY(0); }
-        button[type=submit], #register-next { transition: all 0.2s ease; }
-      `}</style>
     </div>
   );
 }
@@ -424,7 +637,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
+    background: "linear-gradient(135deg, rgb(15, 23, 42) 0%, rgb(30, 41, 59) 50%, rgb(15, 23, 42) 100%)",
     fontFamily: "'Poppins', sans-serif",
     position: "relative",
     overflow: "hidden",
@@ -432,365 +645,276 @@ const styles = {
   },
   blob1: {
     position: "absolute",
-    top: "-80px",
-    right: "-80px",
-    width: "450px",
-    height: "450px",
-    background: "radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)",
-    animation: "blob 9s ease-in-out infinite",
-    zIndex: 0,
+    width: "340px",
+    height: "340px",
+    borderRadius: "50%",
+    background: "radial-gradient(circle, rgba(14,165,233,0.22), transparent 70%)",
+    top: "-90px",
+    left: "-70px",
   },
   blob2: {
     position: "absolute",
-    bottom: "-100px",
-    left: "-50px",
-    width: "500px",
-    height: "500px",
-    background: "radial-gradient(circle, rgba(14,165,233,0.12) 0%, transparent 70%)",
-    animation: "blob 11s ease-in-out infinite reverse",
-    zIndex: 0,
+    width: "420px",
+    height: "420px",
+    borderRadius: "50%",
+    background: "radial-gradient(circle, rgba(99,102,241,0.22), transparent 70%)",
+    bottom: "-120px",
+    right: "-80px",
   },
   blob3: {
     position: "absolute",
-    top: "40%",
-    left: "60%",
-    width: "300px",
-    height: "300px",
-    background: "radial-gradient(circle, rgba(16,185,129,0.07) 0%, transparent 70%)",
-    zIndex: 0,
+    width: "220px",
+    height: "220px",
+    borderRadius: "50%",
+    background: "radial-gradient(circle, rgba(16,185,129,0.18), transparent 70%)",
+    bottom: "15%",
+    left: "12%",
   },
   container: {
-    display: "flex",
     width: "100%",
-    maxWidth: "1000px",
-    minHeight: "600px",
-    borderRadius: "24px",
+    maxWidth: "1180px",
+    minHeight: "720px",
+    display: "grid",
+    gridTemplateColumns: "0.95fr 1.15fr",
+    borderRadius: "28px",
     overflow: "hidden",
-    boxShadow: "0 40px 80px rgba(0,0,0,0.5)",
-    position: "relative",
-    zIndex: 1,
+    background: "rgba(15, 23, 42, 0.92)",
+    boxShadow: "0 30px 80px rgba(0,0,0,0.45)",
+    border: "1px solid rgba(148,163,184,0.12)",
   },
   leftPanel: {
-    flex: "0 0 320px",
-    background: "linear-gradient(160deg, #6366f1 0%, #0ea5e9 60%, #10b981 100%)",
-    padding: "40px 32px",
+    background: "linear-gradient(180deg, rgba(59,130,246,0.95) 0%, rgba(14,165,233,0.92) 52%, rgba(16,185,129,0.88) 100%)",
+    padding: "48px 34px",
     display: "flex",
     flexDirection: "column",
-    justifyContent: "space-between",
+    color: "#fff",
   },
-  logo: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-  },
-  logoText: {
-    color: "white",
-    fontSize: "22px",
-    fontWeight: "700",
-    letterSpacing: "-0.5px",
-  },
-  heroContent: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    padding: "24px 0",
-  },
-  heroTitle: {
-    color: "white",
-    fontSize: "32px",
-    fontWeight: "700",
-    lineHeight: "1.2",
-    margin: "0 0 12px 0",
-  },
-  heroSubtitle: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: "14px",
-    lineHeight: "1.6",
-    margin: 0,
-  },
-  stepIndicator: {
-    marginBottom: "24px",
-  },
-  stepRow: {
-    display: "flex",
-    alignItems: "center",
-    marginBottom: "8px",
-  },
+  logo: { display: "flex", alignItems: "center", gap: "14px", marginBottom: "60px" },
+  logoText: { fontSize: "22px", fontWeight: "700" },
+  heroContent: { maxWidth: "340px" },
+  heroTitle: { fontSize: "58px", lineHeight: 1.02, margin: "0 0 18px 0", fontWeight: "700" },
+  heroSubtitle: { margin: 0, fontSize: "18px", lineHeight: 1.7, color: "rgba(255,255,255,0.92)" },
+  stepIndicator: { marginTop: "52px" },
+  stepRow: { display: "flex", alignItems: "center", gap: "14px" },
   stepDot: {
-    width: "28px",
-    height: "28px",
-    borderRadius: "50%",
+    width: "42px",
+    height: "42px",
+    borderRadius: "999px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "12px",
     fontWeight: "700",
+    fontSize: "14px",
     color: "#6366f1",
-    flexShrink: 0,
   },
-  stepLine: {
-    flex: 1,
-    height: "2px",
-    margin: "0 8px",
-    transition: "background 0.3s",
-  },
-  stepLabels: {
-    display: "flex",
-    alignItems: "center",
-  },
-  stepLabel: {
-    color: "rgba(255,255,255,0.75)",
-    fontSize: "11px",
-    fontWeight: "500",
-  },
-  features: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px",
-  },
+  stepLine: { flex: 1, height: "4px", borderRadius: "999px" },
+  stepLabels: { display: "flex", marginTop: "12px", fontSize: "14px", color: "rgba(255,255,255,0.92)" },
+  stepLabel: { fontWeight: "600" },
+  features: { marginTop: "auto", display: "grid", gap: "14px" },
   featureItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    background: "rgba(255,255,255,0.1)",
-    borderRadius: "12px",
-    padding: "11px 14px",
-    backdropFilter: "blur(10px)",
+    padding: "18px 20px",
+    borderRadius: "18px",
+    background: "rgba(255,255,255,0.12)",
+    backdropFilter: "blur(8px)",
+    border: "1px solid rgba(255,255,255,0.14)",
   },
-  featureIcon: { fontSize: "18px" },
-  featureText: {
-    color: "white",
-    fontSize: "13px",
-    fontWeight: "500",
-  },
+  featureText: { fontSize: "16px", fontWeight: "600" },
   rightPanel: {
-    flex: "1",
-    background: "#0f172a",
+    background: "#141d34",
+    padding: "48px 46px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "40px",
-    overflowY: "auto",
   },
-  formCard: {
-    width: "100%",
-    maxWidth: "400px",
+  formCard: { width: "100%", maxWidth: "560px" },
+  formHeader: { marginBottom: "28px" },
+  formTitle: { margin: 0, fontSize: "44px", color: "#fff", fontWeight: "700" },
+  formSubtitle: { margin: "10px 0 0 0", color: "#6f86b6", fontSize: "18px" },
+  form: { display: "grid", gap: "18px" },
+  fieldRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "14px",
   },
-  formHeader: {
-    marginBottom: "28px",
-  },
-  formTitle: {
-    color: "#f1f5f9",
-    fontSize: "26px",
-    fontWeight: "700",
-    margin: "0 0 6px 0",
-  },
-  formSubtitle: {
-    color: "#64748b",
-    fontSize: "13px",
-    margin: 0,
-  },
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "18px",
-  },
-  fieldGroup: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "8px",
-  },
-  label: {
-    color: "#94a3b8",
-    fontSize: "13px",
-    fontWeight: "500",
-    letterSpacing: "0.3px",
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-  },
+  fieldGroup: { display: "grid", gap: "8px" },
+  label: { color: "#cad6f1", fontWeight: "600", fontSize: "14px" },
   optionalBadge: {
-    background: "#1e293b",
-    color: "#64748b",
+    display: "inline-block",
+    marginLeft: "6px",
+    padding: "2px 8px",
+    borderRadius: "999px",
+    background: "rgba(148,163,184,0.12)",
+    color: "#90a4ce",
     fontSize: "10px",
-    padding: "2px 6px",
-    borderRadius: "4px",
-    fontWeight: "400",
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
-  inputWrapper: {
-    position: "relative",
-    display: "flex",
-    alignItems: "center",
-  },
+  inputWrapper: { position: "relative", display: "flex", alignItems: "center" },
   inputIcon: {
     position: "absolute",
     left: "14px",
-    color: "#475569",
-    display: "flex",
-    alignItems: "center",
+    fontSize: "11px",
+    color: "#7083ae",
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    fontWeight: "700",
     pointerEvents: "none",
   },
   input: {
     width: "100%",
-    paddingLeft: "44px",
-    paddingRight: "44px",
-    paddingTop: "13px",
-    paddingBottom: "13px",
-    background: "#1e293b",
-    border: "1.5px solid #334155",
-    borderRadius: "12px",
-    color: "#f1f5f9",
-    fontSize: "14px",
+    minHeight: "58px",
+    borderRadius: "16px",
+    border: "1px solid #31405f",
+    background: "#22304a",
+    color: "#fff",
+    padding: "0 48px 0 58px",
+    fontSize: "16px",
+    outline: "none",
     fontFamily: "'Poppins', sans-serif",
-    transition: "border-color 0.2s, box-shadow 0.2s",
     boxSizing: "border-box",
   },
+  select: { appearance: "none" },
   eyeBtn: {
     position: "absolute",
     right: "12px",
-    background: "none",
     border: "none",
+    background: "transparent",
+    color: "#c7d2fe",
     cursor: "pointer",
-    fontSize: "16px",
-    padding: "4px",
-    lineHeight: 1,
-  },
-  roleGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "10px",
-  },
-  roleCard: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-start",
-    gap: "4px",
-    padding: "14px",
-    background: "#1e293b",
-    border: "1.5px solid #334155",
-    borderRadius: "14px",
-    cursor: "pointer",
-    fontFamily: "'Poppins', sans-serif",
-    position: "relative",
-    textAlign: "left",
-    transition: "all 0.2s",
-  },
-  roleCardActive: {
-    border: "1.5px solid #6366f1",
-    background: "rgba(99,102,241,0.1)",
-    boxShadow: "0 0 0 3px rgba(99,102,241,0.15)",
-  },
-  roleIcon: { fontSize: "22px", marginBottom: "2px" },
-  roleLabel: {
-    color: "#f1f5f9",
     fontSize: "13px",
-    fontWeight: "600",
-  },
-  roleDesc: {
-    color: "#64748b",
-    fontSize: "11px",
-    lineHeight: "1.3",
-  },
-  roleCheck: {
-    position: "absolute",
-    top: "10px",
-    right: "10px",
-    background: "#6366f1",
-    color: "white",
-    width: "18px",
-    height: "18px",
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "10px",
     fontWeight: "700",
   },
-  strengthWrapper: {
+  roleGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" },
+  roleCard: {
+    textAlign: "left",
+    padding: "20px",
+    borderRadius: "20px",
+    border: "1px solid #31405f",
+    background: "#1f2945",
+    cursor: "pointer",
+    color: "#dbe7ff",
+  },
+  roleCardActive: {
+    border: "1px solid #6875f5",
+    boxShadow: "0 0 0 2px rgba(99,102,241,0.18)",
+    background: "#222c4c",
+  },
+  roleLabel: { fontSize: "22px", fontWeight: "700", marginBottom: "8px" },
+  roleDesc: { color: "#8fa4cf", fontSize: "14px", lineHeight: 1.5 },
+  roleCheck: {
+    display: "inline-block",
+    marginTop: "14px",
+    padding: "6px 10px",
+    borderRadius: "999px",
+    background: "rgba(99,102,241,0.18)",
+    color: "#c7d2fe",
+    fontSize: "12px",
+    fontWeight: "700",
+  },
+  sectionBanner: {
+    display: "grid",
+    gap: "6px",
+    padding: "16px 18px",
+    borderRadius: "16px",
+    background: "rgba(14,165,233,0.08)",
+    border: "1px solid rgba(14,165,233,0.14)",
+    color: "#d9ebff",
+    fontWeight: "700",
+  },
+  sectionBannerText: { color: "#9cb2d9", fontSize: "13px", fontWeight: "500" },
+  checkboxCard: {
     display: "flex",
     alignItems: "center",
-    gap: "10px",
-    marginTop: "6px",
-  },
-  strengthBar: {
-    display: "flex",
-    gap: "4px",
-    flex: 1,
-  },
-  strengthSegment: {
-    flex: 1,
-    height: "4px",
-    borderRadius: "2px",
-    transition: "background 0.3s",
-  },
-  strengthLabel: {
-    fontSize: "12px",
+    gap: "12px",
+    padding: "16px 18px",
+    borderRadius: "16px",
+    border: "1px solid #31405f",
+    background: "#1d2742",
+    color: "#e4ecff",
+    fontSize: "15px",
     fontWeight: "600",
-    minWidth: "44px",
-    textAlign: "right",
   },
-  hint: {
-    color: "#475569",
-    fontSize: "11px",
-    margin: "4px 0 0 0",
-    lineHeight: "1.5",
+  hospitalPanel: {
+    border: "1px solid #31405f",
+    borderRadius: "18px",
+    background: "#1b2540",
+    padding: "14px",
   },
+  hospitalGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "12px",
+  },
+  hospitalCard: {
+    textAlign: "left",
+    padding: "14px",
+    borderRadius: "14px",
+    border: "1px solid #31405f",
+    background: "#22304a",
+    color: "#e2ebff",
+    cursor: "pointer",
+  },
+  hospitalCardActive: {
+    border: "1px solid #16a34a",
+    background: "rgba(22,163,74,0.14)",
+  },
+  hospitalName: { display: "block", fontWeight: "700", marginBottom: "4px" },
+  hospitalMeta: { display: "block", color: "#90a4ce", fontSize: "13px" },
+  helperText: { color: "#9db0d8", fontSize: "13px" },
+  strengthWrapper: { display: "flex", alignItems: "center", gap: "12px", marginTop: "10px" },
+  strengthBar: { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "6px", flex: 1 },
+  strengthSegment: { height: "6px", borderRadius: "999px" },
+  strengthLabel: { minWidth: "48px", fontSize: "12px", fontWeight: "700" },
+  hint: { margin: 0, color: "#7083ae", fontSize: "12px", lineHeight: 1.5 },
   errorBox: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: "8px",
-    background: "rgba(239,68,68,0.1)",
-    border: "1px solid rgba(239,68,68,0.3)",
-    borderRadius: "10px",
     padding: "12px 14px",
-    color: "#fca5a5",
-    fontSize: "13px",
+    borderRadius: "14px",
+    background: "rgba(239,68,68,0.12)",
+    border: "1px solid rgba(239,68,68,0.2)",
+    color: "#fecaca",
+    fontSize: "14px",
   },
   successBox: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    background: "rgba(16,185,129,0.1)",
-    border: "1px solid rgba(16,185,129,0.3)",
-    borderRadius: "10px",
     padding: "12px 14px",
-    color: "#6ee7b7",
-    fontSize: "13px",
+    borderRadius: "14px",
+    background: "rgba(16,185,129,0.12)",
+    border: "1px solid rgba(16,185,129,0.2)",
+    color: "#bbf7d0",
+    fontSize: "14px",
   },
   btnRow: {
-    display: "flex",
-    gap: "12px",
+    display: "grid",
+    gridTemplateColumns: "auto 1fr",
+    gap: "14px",
     alignItems: "center",
+    marginTop: "8px",
   },
   backBtn: {
-    padding: "14px 18px",
-    background: "#1e293b",
-    border: "1.5px solid #334155",
-    borderRadius: "12px",
-    color: "#94a3b8",
-    fontSize: "14px",
-    fontWeight: "500",
+    minHeight: "58px",
+    padding: "0 28px",
+    borderRadius: "16px",
+    border: "1px solid #31405f",
+    background: "#202b47",
+    color: "#d6e1f8",
+    fontSize: "16px",
+    fontWeight: "600",
     cursor: "pointer",
     fontFamily: "'Poppins', sans-serif",
-    transition: "all 0.2s",
   },
   submitBtn: {
+    minHeight: "58px",
+    borderRadius: "16px",
+    border: "none",
+    background: "linear-gradient(135deg, #6366f1 0%, #0ea5e9 100%)",
+    color: "#fff",
+    fontSize: "18px",
+    fontWeight: "700",
+    cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     gap: "8px",
-    width: "100%",
-    padding: "14px",
-    background: "linear-gradient(135deg, #6366f1 0%, #0ea5e9 100%)",
-    border: "none",
-    borderRadius: "12px",
-    color: "white",
-    fontSize: "14px",
-    fontWeight: "600",
-    cursor: "pointer",
     fontFamily: "'Poppins', sans-serif",
-    letterSpacing: "0.3px",
   },
   spinner: {
     width: "16px",
@@ -801,15 +925,8 @@ const styles = {
     display: "inline-block",
     animation: "spin 0.7s linear infinite",
   },
-  switchText: {
-    marginTop: "22px",
-    textAlign: "center",
-    color: "#64748b",
-    fontSize: "13px",
-  },
-  switchLink: {
-    color: "#6366f1",
-    fontWeight: "600",
-    textDecoration: "none",
-  },
+  switchText: { marginTop: "22px", textAlign: "center", color: "#7386b2", fontSize: "15px" },
+  switchLink: { color: "#7c83ff", fontWeight: "700", textDecoration: "none" },
 };
+
+

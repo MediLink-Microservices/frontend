@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { authAPI } from "../../services/api";
+import { getStoredUser, updateStoredUser } from "../../utils/authStorage";
 
 function getErrorMessage(error) {
   const data = error?.response?.data;
@@ -11,9 +12,7 @@ function getErrorMessage(error) {
 }
 
 export default function Profile({ onClose }) {
-  const stored = (() => {
-    try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; }
-  })();
+  const stored = getStoredUser();
 
   const [mode, setMode] = useState("view"); // "view" | "edit"
   const [form, setForm] = useState({
@@ -52,7 +51,7 @@ export default function Profile({ onClose }) {
     try {
       // Update localStorage with new name (in a real app you'd call a profile update endpoint)
       const updatedUser = { ...stored, name: form.name, phoneNumber: form.phoneNumber };
-      localStorage.setItem("user", JSON.stringify(updatedUser));
+      updateStoredUser(updatedUser);
       setSuccess("Profile updated successfully!");
       setTimeout(() => { setMode("view"); setSuccess(""); }, 1500);
     } catch (err) {

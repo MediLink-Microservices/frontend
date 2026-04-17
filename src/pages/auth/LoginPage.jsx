@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { authAPI } from "../../services/api";
+import { clearAuthSession, setAuthSession } from "../../utils/authStorage";
 
 function getErrorMessage(error) {
   return (
@@ -35,20 +36,22 @@ export default function LoginPage() {
       
       const userApprovedStatus = approved !== undefined ? approved : isApproved;
 
-      localStorage.setItem("token", token);
-      localStorage.setItem("refreshToken", refreshToken || "");
-      localStorage.setItem("role", role);
-      localStorage.setItem("user", JSON.stringify({ userId, email, name, role, isApproved: userApprovedStatus }));
+      setAuthSession({
+        token,
+        refreshToken: refreshToken || "",
+        role,
+        user: { userId, email, name, role, isApproved: userApprovedStatus },
+      });
 
       if (role === "DOCTOR" && !userApprovedStatus) {
         setError("Your account is pending admin approval. Please try again later.");
-        localStorage.clear();
+        clearAuthSession();
         return;
       }
 
       if (role === "ADMIN") navigate("/admin");
-      else if (role === "DOCTOR") navigate("/doctor");
-      else navigate("/patient");
+      else if (role === "DOCTOR") navigate("/doctor/dashboard");
+      else navigate("/patient/dashboard");
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

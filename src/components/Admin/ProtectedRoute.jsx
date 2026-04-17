@@ -1,8 +1,9 @@
 import { Navigate } from "react-router-dom";
+import { getStoredAuthValue } from "../../utils/authStorage";
 
 export default function ProtectedRoute({ children, allowedRole }) {
-  const token = localStorage.getItem("token");
-  const rawRole = localStorage.getItem("role") || "";
+  const token = getStoredAuthValue("token");
+  const rawRole = getStoredAuthValue("role") || "";
   
   // Normalize roles by stripping "ROLE_" prefix if it exists
   const role = rawRole.startsWith("ROLE_") ? rawRole.replace("ROLE_", "") : rawRole;
