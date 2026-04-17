@@ -72,6 +72,40 @@ export default function AdminAppointmentsPage() {
       : parsed.toLocaleString("en-LK");
   };
 
+  const generatePDF = () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'mm', 'a4'); // Landscape
+    
+    doc.setFontSize(22);
+    doc.text("MediLink - Appointments Overview", 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+    doc.text(`Status Filter: ${statusFilter}`, 14, 36);
+    doc.text(`Total Records: ${filteredAppointments.length}`, 14, 42);
+    
+    const tableData = filteredAppointments.map(a => [
+      a.appointmentNumber || 'N/A',
+      `Dr. ${a.doctorName}`,
+      a.doctorSpecialty,
+      a.patientId,
+      new Date(a.appointmentDateTime).toLocaleString(),
+      a.status,
+      `Rs. ${a.consultationFee}`
+    ]);
+    
+    doc.autoTable({
+      startY: 48,
+      head: [['ID', 'Doctor', 'Specialty', 'Patient ID', 'Date & Time', 'Status', 'Fee']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [14, 165, 233] },
+      styles: { fontSize: 9 }
+    });
+    
+    doc.save(`appointments-report-${new Date().getTime()}.pdf`);
+  };
+
   return (
     <div style={s.page}>
       <div style={s.banner}>
@@ -110,6 +144,10 @@ export default function AdminAppointmentsPage() {
           <option value="COMPLETED">Completed</option>
           <option value="CANCELLED">Cancelled</option>
         </select>
+        <button style={s.exportBtn} onClick={generatePDF}>
+          <FileText size={16} />
+          Export PDF
+        </button>
       </div>
 
       {error && (
@@ -277,6 +315,20 @@ const s = {
     fontFamily: "'Poppins', sans-serif",
     fontSize: "14px",
     minWidth: "180px",
+  },
+  exportBtn: {
+    padding: "12px 20px",
+    background: "rgba(14,165,233,0.12)",
+    border: "1px solid rgba(14,165,233,0.22)",
+    borderRadius: "14px",
+    color: "#38bdf8",
+    fontSize: "14px",
+    fontWeight: "600",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    transition: "all 0.2s",
   },
   errorBox: {
     display: "flex",

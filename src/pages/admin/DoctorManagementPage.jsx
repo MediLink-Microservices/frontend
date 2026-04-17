@@ -23,6 +23,8 @@ export default function DoctorManagementPage() {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [searchTerm, setSearchTerm] = useState("");
+
   useEffect(() => {
     async function loadDoctors() {
       try {
@@ -37,6 +39,40 @@ export default function DoctorManagementPage() {
     loadDoctors();
   }, []);
 
+  const filteredDoctors = doctors.filter(doc => 
+    doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doc.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (doc.specialization && doc.specialization.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const generatePDF = () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    doc.setFontSize(20);
+    doc.text("MediLink - Doctors Report", 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+    
+    const tableData = filteredDoctors.map(d => [
+      d.name,
+      d.email,
+      d.isApproved ? "Active" : "Pending",
+      new Date(d.createdAt).toLocaleDateString()
+    ]);
+    
+    doc.autoTable({
+      startY: 35,
+      head: [['Name', 'Email', 'Status', 'Joined']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [99, 102, 241] },
+    });
+    
+    doc.save(`doctors-report-${new Date().getTime()}.pdf`);
+  };
+
   return (
     <div style={s.page}>
       {/* Header */}
@@ -45,9 +81,25 @@ export default function DoctorManagementPage() {
           <h2 style={s.heading}>Doctors</h2>
           <p style={s.sub}>All doctor accounts — created by admin are immediately active.</p>
         </div>
-        <button style={s.primaryBtn} id="add-doctor-btn" onClick={() => setShowModal(true)}>
-          + Add Doctor
-        </button>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button style={s.secondaryBtn} onClick={generatePDF}>
+            📄 Export PDF
+          </button>
+          <button style={s.primaryBtn} id="add-doctor-btn" onClick={() => setShowModal(true)}>
+            + Add Doctor
+          </button>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div style={s.searchContainer}>
+        <span style={s.searchIcon}>🔍</span>
+        <input
+          style={s.searchInput}
+          placeholder="Search by name, email or specialization..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
 
       {/* Table / Empty state */}
@@ -55,11 +107,13 @@ export default function DoctorManagementPage() {
         <div style={s.empty}>
           <Spinner />
         </div>
-      ) : doctors.length === 0 ? (
+      ) : filteredDoctors.length === 0 ? (
         <div style={s.empty}>
           <span style={{ fontSize: "52px" }}>👨‍⚕️</span>
-          <p style={s.emptyTitle}>No doctors registered yet</p>
-          <p style={s.emptySub}>Click "Add Doctor" to create the first doctor account.</p>
+          <p style={s.emptyTitle}>{searchTerm ? "No results found" : "No doctors registered yet"}</p>
+          <p style={s.emptySub}>
+            {searchTerm ? "Try a different search term." : "Click \"Add Doctor\" to create the first doctor account."}
+          </p>
         </div>
       ) : (
         <div style={s.tableContainer}>
@@ -73,7 +127,7 @@ export default function DoctorManagementPage() {
               </tr>
             </thead>
             <tbody>
-              {doctors.map(doc => (
+              {filteredDoctors.map(doc => (
                 <tr key={doc.id || doc.email} style={s.tr}>
                   <td style={s.td}><strong>{doc.name}</strong></td>
                   <td style={s.td}>{doc.email}</td>
@@ -294,6 +348,23 @@ const s = {
     padding:"10px 20px", background:"linear-gradient(135deg,#6366f1,#0ea5e9)",
     border:"none", borderRadius:"10px", color:"white", fontSize:"13px",
     fontWeight:"600", cursor:"pointer", fontFamily:"'Poppins',sans-serif",
+  },
+  secondaryBtn: {
+    padding:"10px 20px", background:"rgba(14,165,233,0.1)",
+    border:"1px solid rgba(14,165,233,0.2)", borderRadius:"10px", color:"#0ea5e9", fontSize:"13px",
+    fontWeight:"600", cursor:"pointer", fontFamily:"'Poppins',sans-serif",
+    display: "flex", alignItems: "center", gap: "8px"
+  },
+  searchContainer: {
+    display: "flex", alignItems: "center", gap: "10px",
+    background: "#111827", border: "1px solid #334155",
+    borderRadius: "14px", padding: "10px 14px", marginBottom: "10px"
+  },
+  searchIcon: { fontSize: "16px", color: "#64748b" },
+  searchInput: {
+    flex: 1, background: "transparent", border: "none",
+    color: "#f8fafc", outline: "none", fontSize: "14px",
+    fontFamily: "'Poppins', sans-serif",
   },
   approveBtn: {
     padding: "4px 10px", background: "rgba(16,185,129,0.15)",

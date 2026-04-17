@@ -22,6 +22,8 @@ export default function UserManagementPage() {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null);
 
+  const [searchTerm, setSearchTerm] = useState("");
+
   useEffect(() => {
     async function loadUsers() {
       setLoading(true);
@@ -45,6 +47,39 @@ export default function UserManagementPage() {
     loadUsers();
   }, [activeTab]);
 
+  const filteredUsers = users.filter(u => 
+    u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const generatePDF = () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    doc.setFontSize(20);
+    doc.text(`MediLink - ${activeTab} Report`, 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+    
+    const tableData = filteredUsers.map(u => [
+      u.name,
+      u.email,
+      u.role,
+      new Date(u.createdAt).toLocaleDateString()
+    ]);
+    
+    doc.autoTable({
+      startY: 35,
+      head: [['Name', 'Email', 'Role', 'Joined']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [99, 102, 241] },
+    });
+    
+    doc.save(`users-report-${activeTab}-${new Date().getTime()}.pdf`);
+  };
+
   const openModal = (role) => { setModalRole(role); setShowModal(true); };
 
   return (
@@ -56,6 +91,9 @@ export default function UserManagementPage() {
           <p style={s.sub}>Manage administrators and patients on the platform.</p>
         </div>
         <div style={s.btnGroup}>
+          <button style={s.exportBtn} onClick={generatePDF}>
+            📄 Export PDF
+          </button>
           <button style={s.secondaryBtn} id="add-admin-btn" onClick={() => openModal("ADMIN")}>
             🛡️ Add Admin
           </button>
@@ -65,23 +103,37 @@ export default function UserManagementPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={s.tabs}>
-        {TABS.map(tab => (
-          <button key={tab} style={{ ...s.tab, ...(activeTab === tab ? s.tabActive : {}) }}
-            onClick={() => setActiveTab(tab)}>
-            {tab}
-          </button>
-        ))}
+      {/* Toolbar */}
+      <div style={s.toolbar}>
+        {/* Tabs */}
+        <div style={s.tabs}>
+          {TABS.map(tab => (
+            <button key={tab} style={{ ...s.tab, ...(activeTab === tab ? s.tabActive : {}) }}
+              onClick={() => setActiveTab(tab)}>
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {/* Search Bar */}
+        <div style={s.searchContainer}>
+          <span style={s.searchIcon}>🔍</span>
+          <input
+            style={s.searchInput}
+            placeholder="Search by name or email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Table */}
       {loading ? (
         <div style={s.empty}><Spinner /></div>
-      ) : users.length === 0 ? (
+      ) : filteredUsers.length === 0 ? (
         <div style={s.empty}>
           <span style={{ fontSize: "52px" }}>👥</span>
-          <p style={s.emptyTitle}>No users found</p>
+          <p style={s.emptyTitle}>{searchTerm ? "No results found" : "No users found"}</p>
         </div>
       ) : (
         <div style={s.tableContainer}>
@@ -96,7 +148,7 @@ export default function UserManagementPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map(u => (
+              {filteredUsers.map(u => (
                 <tr key={u.id || u.email} style={s.tr}>
                   <td style={s.td}><strong>{u.name}</strong></td>
                   <td style={s.td}>{u.email}</td>
@@ -280,6 +332,22 @@ const s = {
   btnGroup: { display:"flex", gap:"10px" },
   primaryBtn: { padding:"10px 18px", background:"linear-gradient(135deg,#6366f1,#0ea5e9)", border:"none", borderRadius:"10px", color:"white", fontSize:"13px", fontWeight:"600", cursor:"pointer" },
   secondaryBtn: { padding:"10px 18px", background:"rgba(139,92,246,0.15)", border:"1px solid rgba(139,92,246,0.3)", borderRadius:"10px", color:"#c4b5fd", fontSize:"13px", fontWeight:"600", cursor:"pointer" },
+  exportBtn: {
+    padding:"10px 18px", background:"rgba(14,165,233,0.1)",
+    border:"1px solid rgba(14,165,233,0.2)", borderRadius:"10px", color:"#0ea5e9", fontSize:"13px",
+    fontWeight:"600", cursor:"pointer", display: "flex", alignItems: "center", gap: "8px"
+  },
+  toolbar: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" },
+  searchContainer: {
+    display: "flex", alignItems: "center", gap: "10px",
+    background: "#1e293b", border: "1px solid #334155",
+    borderRadius: "14px", padding: "8px 14px", flex: 1, maxWidth: "300px"
+  },
+  searchIcon: { fontSize: "14px", color: "#64748b" },
+  searchInput: {
+    padding: "0", background: "transparent", border: "none",
+    color: "#f1f5f9", outline: "none", fontSize: "13px", width: "100%"
+  },
   tabs: { display:"flex", gap:"4px", background:"#1e293b", padding:"4px", borderRadius:"10px", width:"fit-content" },
   tab: { padding:"7px 16px", borderRadius:"7px", background:"none", border:"none", color:"#64748b", fontSize:"12px", fontWeight:"500", cursor:"pointer" },
   tabActive: { background:"#334155", color:"#f1f5f9" },

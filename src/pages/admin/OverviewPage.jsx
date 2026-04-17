@@ -38,7 +38,33 @@ export default function OverviewPage({ onNavigate }) {
           <h2 style={s.bannerTitle}>Welcome to MediLink Admin 👋</h2>
           <p style={s.bannerSub}>Here's a quick snapshot of your platform.</p>
         </div>
-        <span style={{ fontSize: "52px" }}>🏥</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <button 
+            style={s.exportBtn} 
+            onClick={() => {
+              const { jsPDF } = window.jspdf;
+              const doc = new jsPDF();
+              doc.setFontSize(22);
+              doc.text("MediLink - Platform Summary", 14, 22);
+              doc.setFontSize(11);
+              doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 30);
+              
+              const tableData = stats.map(st => [st.label, st.value]);
+              doc.autoTable({
+                startY: 40,
+                head: [['Metric', 'Value']],
+                body: tableData,
+                theme: 'striped',
+                headStyles: { fillColor: [99, 102, 241] }
+              });
+              
+              doc.save("platform-summary.pdf");
+            }}
+          >
+            📄 Export Summary
+          </button>
+          <span style={{ fontSize: "52px" }}>🏥</span>
+        </div>
       </div>
 
       {/* Stats */}
@@ -80,6 +106,12 @@ const s = {
     background: "linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(14,165,233,0.1) 100%)",
     border: "1px solid rgba(99,102,241,0.2)", borderRadius: "16px",
     padding: "24px 28px", display: "flex", justifyContent: "space-between", alignItems: "center",
+  },
+  exportBtn: {
+    background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)",
+    color: "#f1f5f9", padding: "10px 18px", borderRadius: "10px", fontSize: "13px",
+    fontWeight: "600", cursor: "pointer", fontFamily: "'Poppins', sans-serif",
+    transition: "all 0.15s",
   },
   bannerTitle: { color: "#f1f5f9", fontSize: "20px", fontWeight: "700", margin: "0 0 4px 0" },
   bannerSub: { color: "#64748b", fontSize: "13px", margin: 0 },
