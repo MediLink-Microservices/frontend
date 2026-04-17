@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { CalendarCheck2, LayoutDashboard, UserCircle2 } from 'lucide-react';
+import { CalendarCheck2, FileText, LayoutDashboard, UserCircle2 } from 'lucide-react';
 
 const tabs = [
   {
@@ -14,6 +14,12 @@ const tabs = [
     label: 'My Bookings',
     description: 'Track and manage appointments',
     icon: CalendarCheck2,
+  },
+  {
+    to: '/patient/medical-reports',
+    label: 'Medical Reports',
+    description: 'Upload and review your records',
+    icon: FileText,
   },
   {
     to: '/patient/profile',
