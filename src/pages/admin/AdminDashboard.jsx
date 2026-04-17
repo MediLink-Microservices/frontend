@@ -1,12 +1,13 @@
 import { useState } from "react";
-import AdminSidebar from "../../components/admin/AdminSidebar";
-import AdminNavbar from "../../components/admin/AdminNavbar";
+import AdminSidebar from "../../components/Admin/AdminSidebar";
+import AdminNavbar from "../../components/Admin/AdminNavbar";
 
 // Pages
 import OverviewPage from "./OverviewPage";
 import AdminAppointmentsPage from "./AdminAppointmentsPage";
 import DoctorManagementPage from "./DoctorManagementPage";
 import UserManagementPage from "./UserManagementPage";
+import PlatformAnalytics from "./PlatformAnalyticsPage";
 import { getStoredUser } from "../../utils/authStorage";
 
 export default function AdminDashboard() {
@@ -36,19 +37,9 @@ export default function AdminDashboard() {
           {activePage === "appointments" && <AdminAppointmentsPage />}
           {activePage === "doctors" && <DoctorManagementPage />}
           {activePage === "users" && <UserManagementPage />}
-          {activePage === "analytics" && <PlaceholderPage icon="📈" title="Platform Analytics" desc="Analytics and statistics coming soon." />}
+          {activePage === "analytics" && <PlatformAnalytics />}
         </div>
       </main>
-    </div>
-  );
-}
-
-function PlaceholderPage({ icon, title, desc }) {
-  return (
-    <div style={s.emptyState}>
-      <span style={{ fontSize: "56px" }}>{icon}</span>
-      <p style={s.emptyTitle}>{title}</p>
-      <p style={s.emptyDesc}>{desc}</p>
     </div>
   );
 }
