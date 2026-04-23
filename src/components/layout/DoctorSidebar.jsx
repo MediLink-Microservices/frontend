@@ -59,6 +59,12 @@ const DoctorSidebar = ({ isOpen, toggleSidebar }) => {
       color: 'text-medilink-accent'
     },
     {
+      title: 'My Profile',
+      icon: User,
+      path: '/doctor/profile',
+      color: 'text-medical-purple'
+    },
+    {
       title: 'Doctors',
       icon: User,
       path: '/doctor/view-doctors',

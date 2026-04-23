@@ -17,7 +17,12 @@ import {
   Stethoscope,
   ArrowUp,
   ArrowDown,
-  MoreVertical
+  MoreVertical,
+  DollarSign,
+  BarChart3,
+  PieChart,
+  TrendingUp as TrendIcon,
+  Award
 } from 'lucide-react';
 
 const DoctorDashboard = () => {
@@ -33,6 +38,37 @@ const DoctorDashboard = () => {
     satisfaction: 0
   });
 
+  // Mock data for charts
+  const [revenueData] = useState([
+    { month: 'Jan', revenue: 45000 },
+    { month: 'Feb', revenue: 52000 },
+    { month: 'Mar', revenue: 48000 },
+    { month: 'Apr', revenue: 61000 },
+    { month: 'May', revenue: 55000 },
+    { month: 'Jun', revenue: 67000 }
+  ]);
+
+  const [appointmentData] = useState([
+    { type: 'In-Person', count: 145, color: '#3B82F6' },
+    { type: 'Video', count: 89, color: '#8B5CF6' },
+    { type: 'Emergency', count: 23, color: '#EF4444' }
+  ]);
+
+  const [specializationData] = useState([
+    { name: 'Cardiology', patients: 120 },
+    { name: 'Neurology', patients: 85 },
+    { name: 'Orthopedics', patients: 95 },
+    { name: 'Pediatrics', patients: 110 },
+    { name: 'General', patients: 150 }
+  ]);
+
+  const [performanceData] = useState([
+    { metric: 'Patient Satisfaction', value: 92, max: 100 },
+    { metric: 'Response Time', value: 85, max: 100 },
+    { metric: 'Treatment Success', value: 94, max: 100 },
+    { metric: 'Follow-up Rate', value: 78, max: 100 }
+  ]);
+
   useEffect(() => {
     setUser(getStoredUser());
     fetchDashboardStats();
@@ -43,6 +79,16 @@ const DoctorDashboard = () => {
     try {
       const DOCTOR_ID = '69dda11899183b33e3e63c9f'; // Replace with actual doctor ID from user context
       
+      // Set mock data for demonstration
+      setStats({
+        totalPatients: 560,
+        todayAppointments: 12,
+        pendingPrescriptions: 8,
+        telemedicineSessions: 89,
+        revenue: 328000,
+        satisfaction: 4.8
+      });
+
       // Fetch all statistics in parallel
       const [
         appointmentsResponse,
@@ -50,9 +96,9 @@ const DoctorDashboard = () => {
         telemedicineResponse,
         patientsResponse
       ] = await Promise.all([
-        fetch(`http://localhost:8084/api/appointments/doctor/69dda11899183b33e3e63c9f`),
+        fetch(`http://localhost:8083/api/appointments/doctor/69dda11899183b33e3e63c9f`),
         fetch(`http://localhost:8083/api/prescriptions/doctor/69dda11899183b33e3e63c9f`),
-        fetch(`http://localhost:8088/api/telemedicine/doctor/69dda11899183b33e3e63c9f`),
+        fetch(`http://localhost:8086/api/telemedicine/doctor/69dda11899183b33e3e63c9f`),
         fetch(`http://localhost:8086/api/patient`) // This might need adjustment for doctor-specific patients
       ]);
 
@@ -96,14 +142,15 @@ const DoctorDashboard = () => {
         totalPatients = patients.length; // This should be doctor-specific patients
       }
 
-      setStats({
-        totalPatients,
-        todayAppointments,
-        pendingPrescriptions,
-        telemedicineSessions,
-        revenue,
+      // Use real data if available, otherwise keep mock data
+      setStats(prev => ({
+        totalPatients: totalPatients || prev.totalPatients,
+        todayAppointments: todayAppointments || prev.todayAppointments,
+        pendingPrescriptions: pendingPrescriptions || prev.pendingPrescriptions,
+        telemedicineSessions: telemedicineSessions || prev.telemedicineSessions,
+        revenue: revenue || prev.revenue,
         satisfaction: 4.8 // This might come from a ratings API
-      });
+      }));
 
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
@@ -112,7 +159,7 @@ const DoctorDashboard = () => {
 
   const fetchTelemedicineSessions = async () => {
     try {
-      const response = await fetch('http://localhost:8088/api/telemedicine/doctor/69dda11899183b33e3e63c9f');
+      const response = await fetch('http://localhost:8086/api/telemedicine/doctor/69dda11899183b33e3e63c9f');
       if (response.ok) {
         const data = await response.json();
         setTelemedicineSessions(data);
@@ -130,6 +177,184 @@ const DoctorDashboard = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.href = '/';
+  };
+
+  // Format currency to Rs 100.00 format
+  const formatCurrency = (amount) => {
+    return `Rs ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  // Custom Bar Chart Component
+  const BarChart = ({ data, title, height = 200 }) => {
+    const maxValue = Math.max(...data.map(d => d.revenue));
+    const barWidth = 40;
+    const barSpacing = 20;
+    const chartWidth = data.length * (barWidth + barSpacing);
+    const chartHeight = height;
+
+    return (
+      <div className="bg-white rounded-xl shadow-medical border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
+        <div className="relative">
+          <svg width={chartWidth} height={chartHeight + 40} className="w-full">
+            {/* Grid lines */}
+            {[0, 25, 50, 75, 100].map((percent) => (
+              <line
+                key={percent}
+                x1="0"
+                y1={chartHeight - (chartHeight * percent / 100)}
+                x2={chartWidth}
+                y2={chartHeight - (chartHeight * percent / 100)}
+                stroke="#E5E7EB"
+                strokeWidth="1"
+              />
+            ))}
+            
+            {/* Bars */}
+            {data.map((item, index) => {
+              const barHeight = (item.revenue / maxValue) * chartHeight;
+              const x = index * (barWidth + barSpacing) + barSpacing;
+              const y = chartHeight - barHeight;
+              
+              return (
+                <g key={index}>
+                  <rect
+                    x={x}
+                    y={y}
+                    width={barWidth}
+                    height={barHeight}
+                    fill="url(#barGradient)"
+                    rx="4"
+                    className="transition-all duration-300 hover:opacity-80"
+                  />
+                  <text
+                    x={x + barWidth / 2}
+                    y={chartHeight + 20}
+                    textAnchor="middle"
+                    className="text-xs fill-gray-600"
+                  >
+                    {item.month}
+                  </text>
+                  <text
+                    x={x + barWidth / 2}
+                    y={y - 5}
+                    textAnchor="middle"
+                    className="text-xs fill-gray-700 font-semibold"
+                  >
+                    {formatCurrency(item.revenue)}
+                  </text>
+                </g>
+              );
+            })}
+            
+            {/* Gradient definition */}
+            <defs>
+              <linearGradient id="barGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#3B82F6" />
+                <stop offset="100%" stopColor="#1D4ED8" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+      </div>
+    );
+  };
+
+  // Custom Pie Chart Component
+  const PieChart = ({ data, title }) => {
+    const total = data.reduce((sum, item) => sum + item.count, 0);
+    const radius = 80;
+    const centerX = 100;
+    const centerY = 100;
+    let currentAngle = -90;
+
+    return (
+      <div className="bg-white rounded-xl shadow-medical border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
+        <div className="flex items-center justify-between">
+          <svg width="200" height="200" className="flex-shrink-0">
+            {data.map((item, index) => {
+              const percentage = (item.count / total) * 100;
+              const angle = (percentage / 100) * 360;
+              const endAngle = currentAngle + angle;
+              
+              const x1 = centerX + Math.cos((currentAngle * Math.PI) / 180) * radius;
+              const y1 = centerY + Math.sin((currentAngle * Math.PI) / 180) * radius;
+              const x2 = centerX + Math.cos((endAngle * Math.PI) / 180) * radius;
+              const y2 = centerY + Math.sin((endAngle * Math.PI) / 180) * radius;
+              
+              const largeArc = angle > 180 ? 1 : 0;
+              
+              const pathData = [
+                `M ${centerX} ${centerY}`,
+                `L ${x1} ${y1}`,
+                `A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`,
+                'Z'
+              ].join(' ');
+              
+              currentAngle = endAngle;
+              
+              return (
+                <g key={index}>
+                  <path
+                    d={pathData}
+                    fill={item.color}
+                    className="transition-all duration-300 hover:opacity-80"
+                  />
+                </g>
+              );
+            })}
+          </svg>
+          
+          <div className="ml-6 space-y-2">
+            {data.map((item, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="text-sm text-gray-700">{item.type}</span>
+                <span className="text-sm font-semibold text-gray-900">{item.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Custom Performance Chart Component
+  const PerformanceChart = ({ data, title }) => {
+    const barHeight = 30;
+    const barSpacing = 15;
+    const maxWidth = 200;
+
+    return (
+      <div className="bg-white rounded-xl shadow-medical border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
+        <div className="space-y-3">
+          {data.map((item, index) => {
+            const percentage = (item.value / item.max) * 100;
+            const barWidth = (percentage / 100) * maxWidth;
+            
+            return (
+              <div key={index} className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-700">{item.metric}</span>
+                  <span className="text-sm font-semibold text-gray-900">{item.value}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-gradient-to-r from-medilink-primary to-medilink-secondary h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -202,6 +427,48 @@ const DoctorDashboard = () => {
               </div>
               <h3 className="text-2xl font-bold text-gray-900">{stats.telemedicineSessions}</h3>
               <p className="text-sm text-gray-600 mt-1">Telemedicine Sessions</p>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 shadow-medical hover:shadow-medical-lg transition-all duration-300 border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
+                  <Users className="w-6 h-6 text-medilink-primary" />
+                </div>
+                <span className="flex items-center text-xs text-green-600 font-medium">
+                  <ArrowUp className="w-3 h-3 mr-1" />
+                  12%
+                </span>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900">{stats.totalPatients}</h3>
+              <p className="text-sm text-gray-600 mt-1">Total Patients</p>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 shadow-medical hover:shadow-medical-lg transition-all duration-300 border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center">
+                  <DollarSign className="w-6 h-6 text-green-600" />
+                </div>
+                <span className="flex items-center text-xs text-green-600 font-medium">
+                  <ArrowUp className="w-3 h-3 mr-1" />
+                  18%
+                </span>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(stats.revenue)}</h3>
+              <p className="text-sm text-gray-600 mt-1">Total Revenue</p>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 shadow-medical hover:shadow-medical-lg transition-all duration-300 border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center">
+                  <Award className="w-6 h-6 text-orange-600" />
+                </div>
+                <span className="flex items-center text-xs text-green-600 font-medium">
+                  <ArrowUp className="w-3 h-3 mr-1" />
+                  5%
+                </span>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900">{stats.satisfaction}</h3>
+              <p className="text-sm text-gray-600 mt-1">Satisfaction Score</p>
             </div>
           </div>
 
@@ -292,8 +559,35 @@ const DoctorDashboard = () => {
             </Link>
           </div>
 
+          {/* Professional Charts Section */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Analytics Overview</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              
+              {/* Revenue Chart */}
+              <BarChart 
+                data={revenueData} 
+                title="Monthly Revenue" 
+                className="lg:col-span-2 xl:col-span-1"
+              />
+              
+              {/* Appointment Types Chart */}
+              <PieChart 
+                data={appointmentData} 
+                title="Appointment Distribution"
+              />
+              
+              {/* Performance Metrics */}
+              <PerformanceChart 
+                data={performanceData} 
+                title="Performance Metrics"
+              />
+              
+            </div>
+          </div>
+
           {/* Recent Telemedicine Sessions */}
-          <div className="bg-white rounded-xl shadow-medical border border-gray-100">
+          <div className="bg-white rounded-xl shadow-medical border border-gray-200">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-gray-900">Recent Telemedicine Sessions</h2>

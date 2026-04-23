@@ -260,7 +260,7 @@ const FindDoctorsPage = () => {
           {/* Doctors List */}
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-medilink-primary"></div>
+              <div className="animate-spin rounded-full h-8 w-10 border-b-2 border-medilink-primary"></div>
             </div>
           ) : filteredDoctors.length === 0 ? (
             <div className="bg-white rounded-xl shadow-medical border border-gray-200 p-12 text-center">
@@ -369,10 +369,10 @@ const FindDoctorsPage = () => {
                         <div>
                           <h5 className="text-sm font-semibold text-gray-900 mb-2">Professional Information</h5>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                            <div>
+                            {/* <div>
                               <span className="text-gray-600">Doctor ID:</span>
                               <span className="ml-2 font-medium text-gray-900">{doctor.doctorId}</span>
-                            </div>
+                            </div> */}
                             <div>
                               <span className="text-gray-600">License Number:</span>
                               <span className="ml-2 font-medium text-gray-900">{doctor.licenseNumber}</span>

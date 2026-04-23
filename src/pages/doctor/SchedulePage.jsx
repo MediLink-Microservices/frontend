@@ -131,7 +131,7 @@ const SchedulePage = () => {
     e.preventDefault();
     try {
       const url = editingSchedule 
-        ? `http://localhost:8083/api/schedules/${editingSchedule.id}`
+        ? `http://localhost:8083/api/schedules/${editingSchedule.scheduleId}`
         : 'http://localhost:8083/api/schedules';
       
       const method = editingSchedule ? 'PUT' : 'POST';
@@ -156,13 +156,17 @@ const SchedulePage = () => {
   };
 
   const handleDelete = async (scheduleId) => {
+    console.log('Attempting to delete schedule with ID:', scheduleId);
     if (window.confirm('Are you sure you want to delete this schedule?')) {
       try {
         const response = await fetch(`http://localhost:8083/api/schedules/${scheduleId}`, {
           method: 'DELETE',
         });
         if (response.ok) {
+          console.log('Schedule deleted successfully');
           fetchSchedules();
+        } else {
+          console.error('Failed to delete schedule:', response.status, response.statusText);
         }
       } catch (error) {
         console.error('Error deleting schedule:', error);
@@ -342,7 +346,7 @@ const SchedulePage = () => {
                   <div className="p-3 space-y-2 min-h-[200px]">
                     {daySchedules.map(schedule => (
                       <div
-                        key={schedule.id}
+                        key={schedule.scheduleId}
                         className="bg-gray-50 rounded-lg p-3 border border-gray-200 hover:border-medilink-primary transition-colors cursor-pointer"
                         onClick={() => handleEdit(schedule)}
                       >
@@ -387,7 +391,7 @@ const SchedulePage = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDelete(schedule.id);
+                                  handleDelete(schedule.scheduleId);
                                 }}
                                 className="p-1 hover:bg-red-100 rounded transition-colors"
                               >

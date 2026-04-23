@@ -51,6 +51,7 @@ const PrescriptionsPage = () => {
     duration: '',
     notes: ''
   });
+  const [editingPrescription, setEditingPrescription] = useState(null);
 
   const DOCTOR_ID = '69dda11899183b33e3e63c9f';
 
@@ -125,6 +126,9 @@ const PrescriptionsPage = () => {
       if (response.ok) {
         const data = await response.json();
         setPatients(data);
+        console.log('Fetched patients:', data);
+      } else {
+        console.error('Failed to fetch patients:', response.status);
       }
     } catch (error) {
       console.error('Error fetching patients:', error);
@@ -135,6 +139,8 @@ const PrescriptionsPage = () => {
 
   const filterPatients = () => {
     let filtered = [...patients];
+    console.log('Total patients available:', patients.length);
+    console.log('Patient search term:', patientSearchTerm);
 
     if (patientSearchTerm) {
       const searchLower = patientSearchTerm.toLowerCase();
@@ -147,6 +153,7 @@ const PrescriptionsPage = () => {
       );
     }
 
+    console.log('Filtered patients count:', filtered.length);
     setFilteredPatients(filtered);
   };
 
@@ -342,6 +349,85 @@ ${prescription.notes}
       notes: ''
     });
     setSelectedPatient(null);
+    setEditingPrescription(null);
+  };
+
+  const handleUpdatePrescription = async () => {
+    if (!editingPrescription) return;
+    
+    if (!prescriptionForm.diagnosis || !prescriptionForm.medicines || !prescriptionForm.duration) {
+      alert('Please fill in all required fields (diagnosis, medicines, duration)');
+      return;
+    }
+
+    try {
+      const prescriptionData = {
+        doctorId: DOCTOR_ID,
+        patientId: editingPrescription.patientId,
+        diagnosis: prescriptionForm.diagnosis,
+        medicines: prescriptionForm.medicines,
+        dosageInstructions: prescriptionForm.dosageInstructions,
+        duration: prescriptionForm.duration,
+        notes: prescriptionForm.notes
+      };
+
+      const response = await fetch(`http://localhost:8083/api/prescriptions/${editingPrescription.prescriptionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(prescriptionData),
+      });
+
+      if (response.ok) {
+        resetPrescriptionForm();
+        setShowNewPrescription(false);
+        fetchPrescriptions();
+        setSelectedPrescription(null);
+        alert('Prescription updated successfully!');
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to update prescription: ${errorData.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error updating prescription:', error);
+      alert('Failed to update prescription. Please try again.');
+    }
+  };
+
+  const handleDeletePrescription = async (prescriptionId) => {
+    if (!window.confirm('Are you sure you want to delete this prescription?')) return;
+    
+    try {
+      const response = await fetch(`http://localhost:8083/api/prescriptions/${prescriptionId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        fetchPrescriptions();
+        setSelectedPrescription(null);
+        alert('Prescription deleted successfully!');
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to delete prescription: ${errorData.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting prescription:', error);
+      alert('Failed to delete prescription. Please try again.');
+    }
+  };
+
+  const handleEditPrescription = (prescription) => {
+    setEditingPrescription(prescription);
+    setPrescriptionForm({
+      diagnosis: prescription.diagnosis,
+      medicines: prescription.medicines,
+      dosageInstructions: prescription.dosageInstructions,
+      duration: prescription.duration,
+      notes: prescription.notes || ''
+    });
+    setSelectedPatient({ id: prescription.patientId });
+    setShowNewPrescription(true);
   };
 
   return (
@@ -481,7 +567,9 @@ ${prescription.notes}
             <div className="mb-8">
               <div className="bg-white rounded-xl shadow-medical border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900">Issue New Prescription</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    {editingPrescription ? 'Edit Prescription' : 'Issue New Prescription'}
+                  </h2>
                   <button
                     onClick={() => {
                       setShowNewPrescription(false);
@@ -699,8 +787,8 @@ ${prescription.notes}
                       >
                         Cancel
                       </button>
-                      <button onClick={handleIssuePrescription} className="px-6 py-2 bg-medilink-primary text-white rounded-lg hover:bg-medilink-secondary transition-colors">
-                        Issue Prescription
+                      <button onClick={editingPrescription ? handleUpdatePrescription : handleIssuePrescription} className="px-6 py-2 bg-medilink-primary text-white rounded-lg hover:bg-medilink-secondary transition-colors">
+                        {editingPrescription ? 'Update Prescription' : 'Issue Prescription'}
                       </button>
                     </div>
                   </>
@@ -763,14 +851,20 @@ ${prescription.notes}
                             <Download className="w-4 h-4 text-gray-600" />
                           </button>
                           <button
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditPrescription(prescription);
+                            }}
                             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                           >
                             <Edit className="w-4 h-4 text-gray-600" />
                           </button>
                           <button
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeletePrescription(prescription.prescriptionId);
+                            }}
+                            className="p-2 hover:bg-red-100 rounded-lg transition-colors"
                           >
                             <Trash2 className="w-4 h-4 text-red-600" />
                           </button>
@@ -968,9 +1062,19 @@ ${prescription.notes}
                             <Download className="w-4 h-4" />
                             <span className="text-sm">Download</span>
                           </button>
-                          <button className="flex items-center justify-center space-x-2 px-4 py-2 bg-medilink-success text-white rounded-lg hover:bg-green-600 transition-colors">
+                          <button 
+                            onClick={() => handleEditPrescription(selectedPrescription)}
+                            className="flex items-center justify-center space-x-2 px-4 py-2 bg-medilink-success text-white rounded-lg hover:bg-green-600 transition-colors"
+                          >
                             <Edit className="w-4 h-4" />
                             <span className="text-sm">Edit</span>
+                          </button>
+                          <button 
+                            onClick={() => handleDeletePrescription(selectedPrescription.prescriptionId)}
+                            className="flex items-center justify-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span className="text-sm">Delete</span>
                           </button>
                         </div>
                       </div>
