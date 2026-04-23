@@ -1269,26 +1269,7 @@ const BookAppointmentPage = () => {
                   </div>
                 )}
 
-                {telemedicineSession?.jitsiUrl && (
-                  <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-4 text-sm text-sky-800">
-                    <p className="font-semibold">Telemedicine video session ready</p>
-                    <p className="mt-1 text-sky-700">
-                      This appointment includes a secure Jitsi Meet room for the doctor and patient.
-                    </p>
-                    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="truncate text-xs text-sky-600">{telemedicineSession.jitsiUrl}</p>
-                      <button
-                        type="button"
-                        onClick={() => window.open(telemedicineSession.jitsiUrl, '_blank', 'noopener,noreferrer')}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        Join Video Session
-                      </button>
-                    </div>
-                  </div>
-                )}
-
+               
                 <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-between">
                   <button
                     className="rounded-2xl border border-gray-200 px-5 py-3 text-sm font-medium text-gray-600 transition hover:border-medilink-primary hover:text-medilink-primary"
