@@ -9,6 +9,8 @@ import {
   Stethoscope,
   UserRound,
   XCircle,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import { appointmentAPI } from "../../services/api";
 
@@ -18,10 +20,23 @@ export default function AdminAppointmentsPage() {
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [updatingId, setUpdatingId] = useState(null);
+  const [updateError, setUpdateError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
 
   useEffect(() => {
     loadAppointments();
   }, []);
+
+  useEffect(() => {
+    if (successMessage || updateError) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null);
+        setUpdateError(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage, updateError]);
 
   const loadAppointments = async () => {
     try {
@@ -37,6 +52,44 @@ export default function AdminAppointmentsPage() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (appointmentId, newStatus) => {
+    if (newStatus === "CANCELLED") {
+      const confirmed = window.confirm(
+        "Are you sure you want to cancel this appointment? This action cannot be undone."
+      );
+      if (!confirmed) return;
+    }
+
+    if (newStatus === "COMPLETED") {
+      const confirmed = window.confirm(
+        "Mark this appointment as completed? This will finalize the booking."
+      );
+      if (!confirmed) return;
+    }
+
+    try {
+      setUpdatingId(appointmentId);
+      setUpdateError(null);
+      
+      await appointmentAPI.updateAppointmentStatus(appointmentId, newStatus);
+      
+      setAppointments((prev) =>
+        prev.map((apt) =>
+          apt.id === appointmentId ? { ...apt, status: newStatus } : apt
+        )
+      );
+      
+      setSuccessMessage("Appointment status updated successfully!");
+    } catch (err) {
+      setUpdateError(
+        err?.response?.data?.message || err?.message || "Failed to update status"
+      );
+      loadAppointments();
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -74,7 +127,7 @@ export default function AdminAppointmentsPage() {
 
   const generatePDF = () => {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('l', 'mm', 'a4'); // Landscape
+    const doc = new jsPDF('l', 'mm', 'a4');
     
     doc.setFontSize(22);
     doc.text("MediLink - Appointments Overview", 14, 22);
@@ -106,6 +159,22 @@ export default function AdminAppointmentsPage() {
     doc.save(`appointments-report-${new Date().getTime()}.pdf`);
   };
 
+  const STATUS_OPTIONS = [
+    { value: "PENDING_PAYMENT", label: "Pending Payment" },
+    { value: "CONFIRMED", label: "Confirmed" },
+    { value: "COMPLETED", label: "Completed" },
+    { value: "CANCELLED", label: "Cancelled" },
+  ];
+
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case "CONFIRMED": return s.confirmed;
+      case "PENDING_PAYMENT": return s.pending;
+      case "CANCELLED": return s.cancelled;
+      default: return s.neutral;
+    }
+  };
+
   return (
     <div style={s.page}>
       <div style={s.banner}>
@@ -122,6 +191,25 @@ export default function AdminAppointmentsPage() {
           <span style={s.statValue}>{filteredAppointments.length}</span>
         </div>
       </div>
+
+      {successMessage && (
+        <div style={s.successBox}>
+          <CheckCircle size={16} />
+          <span>{successMessage}</span>
+        </div>
+      )}
+      {updateError && (
+        <div style={s.errorBox}>
+          <AlertCircle size={16} />
+          <span>{updateError}</span>
+        </div>
+      )}
+      {error && (
+        <div style={s.errorBox}>
+          <XCircle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
 
       <div style={s.toolbar}>
         <div style={s.searchWrap}>
@@ -150,13 +238,6 @@ export default function AdminAppointmentsPage() {
         </button>
       </div>
 
-      {error && (
-        <div style={s.errorBox}>
-          <XCircle size={16} />
-          <span>{error}</span>
-        </div>
-      )}
-
       {loading ? (
         <div style={s.emptyState}>
           <LoaderCircle size={28} style={{ animation: "spin 1s linear infinite" }} />
@@ -177,20 +258,39 @@ export default function AdminAppointmentsPage() {
                   <h3 style={s.cardTitle}>Dr. {appointment.doctorName}</h3>
                   <p style={s.cardSubtitle}>{appointment.doctorSpecialty}</p>
                 </div>
-                <span
-                  style={{
-                    ...s.statusPill,
-                    ...(appointment.status === "CONFIRMED"
-                      ? s.confirmed
-                      : appointment.status === "PENDING_PAYMENT"
-                        ? s.pending
-                        : appointment.status === "CANCELLED"
-                          ? s.cancelled
-                          : s.neutral),
-                  }}
-                >
-                  {appointment.status}
-                </span>
+                
+                <div style={s.statusControl}>
+                  <span
+                    style={{
+                      ...s.statusPill,
+                      ...getStatusStyle(appointment.status),
+                    }}
+                  >
+                    {appointment.status.replace("_", " ")}
+                  </span>
+                  
+                  <select
+                    style={s.statusSelect}
+                    value={appointment.status}
+                    onChange={(e) => handleStatusChange(appointment.id, e.target.value)}
+                    disabled={updatingId === appointment.id}
+                    title="Change appointment status"
+                  >
+                    {STATUS_OPTIONS.map((opt) => (
+                      <option 
+                        key={opt.value} 
+                        value={opt.value}
+                        disabled={appointment.status === opt.value}
+                      >
+                        → {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  
+                  {updatingId === appointment.id && (
+                    <LoaderCircle size={14} style={{ animation: "spin 1s linear infinite", marginLeft: "8px" }} />
+                  )}
+                </div>
               </div>
 
               <div style={s.infoGrid}>
@@ -330,6 +430,17 @@ const s = {
     gap: "10px",
     transition: "all 0.2s",
   },
+  successBox: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    background: "rgba(16,185,129,0.12)",
+    color: "#6ee7b7",
+    border: "1px solid rgba(16,185,129,0.22)",
+    borderRadius: "14px",
+    padding: "14px 16px",
+    fontSize: "13px",
+  },
   errorBox: {
     display: "flex",
     alignItems: "center",
@@ -364,9 +475,16 @@ const s = {
     flexDirection: "column",
     gap: "16px",
   },
-  cardTop: { display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "flex-start" },
+  cardTop: { display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "flex-start", flexWrap: "wrap" },
   cardTitle: { color: "#f8fafc", fontSize: "20px", fontWeight: "700", margin: 0 },
   cardSubtitle: { color: "#94a3b8", fontSize: "13px", margin: "6px 0 0 0" },
+  
+  statusControl: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
   statusPill: {
     padding: "8px 12px",
     borderRadius: "999px",
@@ -374,10 +492,22 @@ const s = {
     fontWeight: "700",
     whiteSpace: "nowrap",
   },
+  statusSelect: {
+    background: "#0f172a",
+    border: "1px solid #334155",
+    borderRadius: "8px",
+    color: "#f8fafc",
+    padding: "6px 10px",
+    fontSize: "11px",
+    fontWeight: "600",
+    cursor: "pointer",
+    outline: "none",
+  },
   confirmed: { background: "rgba(16,185,129,0.14)", color: "#6ee7b7" },
   pending: { background: "rgba(245,158,11,0.14)", color: "#fcd34d" },
   cancelled: { background: "rgba(239,68,68,0.14)", color: "#fca5a5" },
   neutral: { background: "rgba(59,130,246,0.14)", color: "#93c5fd" },
+  
   infoGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" },
   infoItem: {
     display: "flex",
