@@ -32,6 +32,12 @@ const PatientProfilePage = () => {
     NIC: '',
     dateOfBirth: '',
   });
+
+  const handleLogout = () => {
+    updateStoredUser(null);
+    window.location.href = '/login';
+  };
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -203,6 +209,17 @@ const PatientProfilePage = () => {
                       These details are linked to your patient profile, so appointment records and telemedicine sessions stay aligned with your account.
                     </span>
                   </div>
+                </div>
+                <div className="mt-6 border-t border-gray-200 pt-4">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition 
+                              hover:bg-red-100 hover:border-red-300 
+                              focus:outline-none focus:ring-2 focus:ring-red-200"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Logout
+                  </button>
                 </div>
               </div>
 
