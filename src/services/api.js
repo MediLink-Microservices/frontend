@@ -37,7 +37,7 @@ const createClient = (baseURL) => {
   return client
 }
 
-const authClient = createClient('http://localhost:8081')
+const authClient = createClient('/api/auth')
 const doctorClient = createClient('http://localhost:8083/api')
 const patientClient = createClient('http://localhost:8086/api')
 const appointmentClient = createClient('http://localhost:8084/api')
@@ -45,16 +45,16 @@ const paymentClient = createClient('http://localhost:8085/api')
 const telemedicineClient = createClient('http://localhost:8088/api')
 
 export const authAPI = {
-  login: (credentials) => authClient.post('/auth/login', credentials),
-  register: (userData) => authClient.post('/auth/register', userData),
-  adminRegister: (userData) => authClient.post('/auth/admin/register', userData),
-  validateToken: (token) => authClient.get('/auth/validate', { headers: { Authorization: `Bearer ${token}` } }),
-  refreshToken: (refreshToken) => authClient.post('/auth/refresh', null, { params: { refreshToken } }),
-  logout: () => authClient.post('/auth/logout'),
-  adminStats: () => authClient.get('/auth/admin/stats'),
-  adminUsers: (role = 'ALL') => authClient.get('/auth/admin/users', { params: { role } }),
-  approveUser: (userId, approved) => authClient.put(`/auth/admin/users/${userId}/approve`, null, { params: { approved } }),
-  updateUserDetails: (userId, updates) => authClient.put(`/auth/admin/users/${userId}`, updates),
+  login: (credentials) => authClient.post('/login', credentials),
+  register: (userData) => authClient.post('/register', userData),
+  adminRegister: (userData) => authClient.post('/admin/register', userData),
+  validateToken: (token) => authClient.get('/validate', { headers: { Authorization: `Bearer ${token}` } }),
+  refreshToken: (refreshToken) => authClient.post('/refresh', null, { params: { refreshToken } }),
+  logout: () => authClient.post('/logout'),
+  adminStats: () => authClient.get('/admin/stats'),
+  adminUsers: (role = 'ALL') => authClient.get('/admin/users', { params: { role } }),
+  approveUser: (userId, approved) => authClient.put(`/admin/users/${userId}/approve`, null, { params: { approved } }),
+  updateUserDetails: (userId, updates) => authClient.put(`/admin/users/${userId}`, updates),
 }
 
 export const doctorAPI = {
