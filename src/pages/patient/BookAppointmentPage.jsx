@@ -53,6 +53,7 @@ const BookAppointmentPage = () => {
   const [patientProfile, setPatientProfile] = useState(null);
   const [patientLoading, setPatientLoading] = useState(Boolean(storedUser?.userId || storedUser?.id));
   const [patientLookupError, setPatientLookupError] = useState('');
+  const [upcomingAppointmentDate, setUpcomingAppointmentDate] = useState('');
   const [formError, setFormError] = useState('');
 
   // Step 1: Specialty selection
@@ -61,6 +62,7 @@ const BookAppointmentPage = () => {
 
   // Step 2: Doctor selection
   const [doctors, setDoctors] = useState([]);
+  const [totalDoctors, setTotalDoctors] = useState(0);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [loadingDoctors, setLoadingDoctors] = useState(false);
 
@@ -122,6 +124,7 @@ const BookAppointmentPage = () => {
   useEffect(() => {
     setSpecialties(commonSpecialties);
     fetchHospitals();
+    fetchTotalDoctors();
   }, []);
 
   useEffect(() => {
@@ -159,6 +162,47 @@ const BookAppointmentPage = () => {
 
     fetchPatientProfile();
   }, [storedUser?.id, storedUser?.name, storedUser?.userId]);
+
+  useEffect(() => {
+    const fetchUpcomingAppointmentNumber = async () => {
+      if (!patientDetails.patientId) {
+        setUpcomingAppointmentDate('');
+        return;
+      }
+
+      try {
+        const response = await patientAPI.getPatientAppointments(patientDetails.patientId);
+        const appointments = Array.isArray(response.data) ? response.data : [];
+        const now = new Date();
+
+        const nextAppointment = appointments
+          .filter((appointment) => (
+            appointment?.appointmentDateTime
+            && appointment.status !== 'CANCELLED'
+            && !Number.isNaN(new Date(appointment.appointmentDateTime).getTime())
+            && new Date(appointment.appointmentDateTime) >= now
+          ))
+          .sort((left, right) => (
+            new Date(left.appointmentDateTime).getTime() - new Date(right.appointmentDateTime).getTime()
+          ))[0];
+
+        setUpcomingAppointmentDate(
+          nextAppointment?.appointmentDateTime
+            ? new Date(nextAppointment.appointmentDateTime).toLocaleDateString('en-LK', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })
+            : ''
+        );
+      } catch (error) {
+        console.error('Error fetching upcoming appointment number:', error);
+        setUpcomingAppointmentDate('');
+      }
+    };
+
+    fetchUpcomingAppointmentNumber();
+  }, [patientDetails.patientId]);
 
   useEffect(() => {
     const hydrateTelemedicineSession = async () => {
@@ -213,6 +257,18 @@ const BookAppointmentPage = () => {
       }
     } catch (error) {
       console.error('Error fetching hospitals:', error);
+    }
+  };
+
+  const fetchTotalDoctors = async () => {
+    try {
+      const response = await fetch('http://localhost:8083/api/doctors');
+      if (response.ok) {
+        const data = await response.json();
+        setTotalDoctors(Array.isArray(data) ? data.length : 0);
+      }
+    } catch (error) {
+      console.error('Error fetching total doctors:', error);
     }
   };
 
@@ -724,14 +780,14 @@ const BookAppointmentPage = () => {
                 <p className="text-xs uppercase tracking-[0.2em] text-white/70">Specialties</p>
                 <p className="mt-2 text-2xl font-bold">{specialties.length}</p>
               </div>
-              <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-white/70">Doctors</p>
-                <p className="mt-2 text-2xl font-bold">{doctors.length || '-'}</p>
-              </div>
-              <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
-                <p className="text-xs uppercase tracking-[0.2em] text-white/70">Queue</p>
-                <p className="mt-2 text-2xl font-bold">{projectedAppointmentNumber || '-'}</p>
-              </div>
+                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/70">Doctors</p>
+                  <p className="mt-2 text-2xl font-bold">{totalDoctors || '-'}</p>
+                </div>
+                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/70">Next Appt</p>
+                  <p className="mt-2 text-lg font-bold">{upcomingAppointmentDate || '-'}</p>
+                </div>
             </div>
           </div>
         </div>
