@@ -96,9 +96,9 @@ const DoctorDashboard = () => {
         telemedicineResponse,
         patientsResponse
       ] = await Promise.all([
-        fetch(`http://localhost:8083/api/appointments/doctor/69dda11899183b33e3e63c9f`),
+        fetch(`http://localhost:8084/api/appointments/doctor/69dda11899183b33e3e63c9f`),
         fetch(`http://localhost:8083/api/prescriptions/doctor/69dda11899183b33e3e63c9f`),
-        fetch(`http://localhost:8086/api/telemedicine/doctor/69dda11899183b33e3e63c9f`),
+        fetch(`http://localhost:8088/api/telemedicine/doctor/69dda11899183b33e3e63c9f`),
         fetch(`http://localhost:8086/api/patient`) // This might need adjustment for doctor-specific patients
       ]);
 
@@ -159,7 +159,7 @@ const DoctorDashboard = () => {
 
   const fetchTelemedicineSessions = async () => {
     try {
-      const response = await fetch('http://localhost:8086/api/telemedicine/doctor/69dda11899183b33e3e63c9f');
+      const response = await fetch('http://localhost:8088/api/telemedicine/doctor/69dda11899183b33e3e63c9f');
       if (response.ok) {
         const data = await response.json();
         setTelemedicineSessions(data);
