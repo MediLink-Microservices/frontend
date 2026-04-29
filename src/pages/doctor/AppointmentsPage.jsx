@@ -33,7 +33,8 @@ const AppointmentsPage = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [dateFilter, setDateFilter] = useState('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
 
@@ -45,7 +46,7 @@ const AppointmentsPage = () => {
 
   useEffect(() => {
     filterAppointments();
-  }, [appointments, searchTerm, statusFilter, dateFilter]);
+  }, [appointments, searchTerm, statusFilter, startDate, endDate]);
 
   const initializeDoctorSession = async () => {
     try {
@@ -145,25 +146,25 @@ const AppointmentsPage = () => {
       filtered = filtered.filter(apt => apt.status === statusFilter);
     }
 
-    // Date filter
-    if (dateFilter !== 'ALL') {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
+    // Date range filter
+    if (startDate || endDate) {
       filtered = filtered.filter(apt => {
         const aptDate = new Date(apt.appointmentDateTime);
         aptDate.setHours(0, 0, 0, 0);
         
-        switch (dateFilter) {
-          case 'TODAY':
-            return aptDate.getTime() === today.getTime();
-          case 'UPCOMING':
-            return aptDate >= today;
-          case 'PAST':
-            return aptDate < today;
-          default:
-            return true;
+        if (startDate) {
+          const start = new Date(startDate);
+          start.setHours(0, 0, 0, 0);
+          if (aptDate < start) return false;
         }
+        
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          if (aptDate > end) return false;
+        }
+        
+        return true;
       });
     }
 
@@ -320,7 +321,7 @@ const AppointmentsPage = () => {
 
               {/* Filter Options */}
               {showFilters && (
-                <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                     <select
@@ -337,17 +338,23 @@ const AppointmentsPage = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                    <select
-                      value={dateFilter}
-                      onChange={(e) => setDateFilter(e.target.value)}
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medilink-primary focus:border-transparent outline-none"
-                    >
-                      <option value="ALL">All Dates</option>
-                      <option value="TODAY">Today</option>
-                      <option value="UPCOMING">Upcoming</option>
-                      <option value="PAST">Past</option>
-                    </select>
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medilink-primary focus:border-transparent outline-none"
+                    />
                   </div>
 
                   <div className="flex items-end">
@@ -355,7 +362,8 @@ const AppointmentsPage = () => {
                       onClick={() => {
                         setSearchTerm('');
                         setStatusFilter('ALL');
-                        setDateFilter('ALL');
+                        setStartDate('');
+                        setEndDate('');
                       }}
                       className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                     >
