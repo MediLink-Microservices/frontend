@@ -3,43 +3,38 @@ import { useNavigate } from "react-router-dom";
 
 // ─── MOCK DATA ───────────────────────────────────────────────────────────────
 const STATS = [
-  { value: "40+", label: "Hospitals Registered", icon: "🏥" },
-  { value: "2000+", label: "Patients Served", icon: "🫀" },
-  { value: "500+", label: "Certified Doctors", icon: "👨‍⚕️" },
-  { value: "98%", label: "Satisfaction Rate", icon: "⭐" },
+  { value: "40+", label: "Hospitals Registered" },
+  { value: "2000+", label: "Patients Served" },
+  { value: "500+", label: "Certified Doctors" },
+  { value: "98%", label: "Satisfaction Rate" },
 ];
 
 const SERVICES = [
   {
-    icon: "📅",
     title: "Smart Appointment Booking",
     desc: "Book doctor visits in seconds — choose your specialist, date, and hospital from one seamless interface.",
     color: "#0ea5e9",
     bg: "rgba(14,165,233,0.08)",
   },
   {
-    icon: "💊",
     title: "Digital Prescriptions",
     desc: "Doctors issue prescriptions digitally, reducing errors and enabling instant pharmacy fulfilment.",
     color: "#10b981",
     bg: "rgba(16,185,129,0.08)",
   },
   {
-    icon: "🖥️",
     title: "Telemedicine Consultations",
     desc: "Connect face-to-face with top specialists from home via secure HD video calls — anytime, anywhere.",
     color: "#6366f1",
     bg: "rgba(99,102,241,0.08)",
   },
   {
-    icon: "📋",
     title: "Health Records Hub",
     desc: "A unified, encrypted timeline of your test results, diagnoses, and prescriptions — always at hand.",
     color: "#f59e0b",
     bg: "rgba(245,158,11,0.08)",
   },
   {
-    icon: "🏥",
     title: "Hospital Network",
     desc: "Access 40+ partner hospitals across the region — compare ratings, specialities, and availability instantly.",
     color: "#14b8a6",
@@ -102,8 +97,8 @@ const NAV_LINKS = ["Home", "Services", "Hospitals", "Telemedicine", "About"];
 
 function StarRating({ count = 5 }) {
   return (
-    <span style={{ color: "#f59e0b", letterSpacing: "1px", fontSize: "14px" }}>
-      {"★".repeat(count)}{"☆".repeat(5 - count)}
+    <span style={{ color: "#f59e0b", fontSize: "14px" }}>
+      {count}/5
     </span>
   );
 }
@@ -202,13 +197,6 @@ export default function Home() {
           font-weight: 700; font-size: 22px; letter-spacing: -0.5px;
           text-decoration: none; color: var(--white);
         }
-        .logo-icon {
-          width: 38px; height: 38px; border-radius: 10px;
-          background: linear-gradient(135deg, var(--blue), var(--mint));
-          display: flex; align-items: center; justify-content: center;
-          font-size: 18px;
-        }
-        .logo-span { color: var(--blue); }
         .nav-links {
           display: flex; align-items: center; gap: 36px; list-style: none;
         }
@@ -259,8 +247,6 @@ export default function Home() {
           color: var(--blue); margin-bottom: 28px; letter-spacing: 0.5px;
           animation: fadeUp 0.6s ease both;
         }
-        .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); animation: pulse 2s infinite; }
-        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.4)} }
         .hero h1 {
           font-family: var(--display); font-size: clamp(42px, 6vw, 76px);
           line-height: 1.08; letter-spacing: -1px; margin-bottom: 24px;
@@ -360,7 +346,6 @@ export default function Home() {
         }
         .stat-card:last-child { border-right: none; }
         .stat-card:hover { background: var(--card); }
-        .stat-icon { font-size: 32px; margin-bottom: 14px; display: block; }
         .stat-value {
           font-family: var(--display); font-size: 52px; line-height: 1;
           background: linear-gradient(135deg, var(--white), var(--blue));
@@ -443,15 +428,10 @@ export default function Home() {
           border: 1px solid var(--border); border-radius: 16px;
           padding: 16px 20px; display: flex; gap: 14px; align-items: center;
         }
-        .tele-badge-icon { font-size: 28px; }
         .tele-badge-text { font-size: 13px; font-weight: 600; }
         .tele-badge-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
         .tele-features { margin-top: 36px; display: flex; flex-direction: column; gap: 18px; }
         .tele-feat { display: flex; align-items: flex-start; gap: 16px; }
-        .tele-feat-icon {
-          width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
-          background: rgba(14,165,233,0.1); display: flex; align-items: center; justify-content: center; font-size: 18px;
-        }
         .tele-feat h4 { font-size: 15px; font-weight: 600; margin-bottom: 5px; }
         .tele-feat p { color: var(--muted); font-size: 13px; line-height: 1.6; }
 
@@ -468,7 +448,6 @@ export default function Home() {
           position: relative;
         }
         .review-card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.12); }
-        .review-quote { font-size: 40px; color: var(--blue); line-height: 1; margin-bottom: 14px; opacity: 0.5; }
         .review-text { font-size: 14px; line-height: 1.75; color: rgba(248,250,255,0.85); margin-bottom: 24px; }
         .review-author { display: flex; align-items: center; gap: 12px; }
         .review-avatar { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); }
@@ -582,11 +561,10 @@ export default function Home() {
         <div className="hero-grid" />
         <div className="hero-content">
           <div className="hero-badge">
-
             Sri Lanka's Leading Smart Health Platform
           </div>
           <h1>
-            Healthcare That <em>Works</em> for You
+            Healthcare That Works for You
           </h1>
           <p>
             MediLink connects patients with 500+ doctors across 40+ hospitals — offering seamless booking,
@@ -624,7 +602,6 @@ export default function Home() {
         <div className="stats-grid">
           {STATS.map(s => (
             <div className="stat-card" key={s.label}>
-              <span className="stat-icon">{s.icon}</span>
               <div className="stat-value">
                 <AnimatedCounter
                   target={s.value}
@@ -642,7 +619,7 @@ export default function Home() {
         <div className="section-header-row">
           <div>
             <span className="section-label">What We Offer</span>
-            <h2 className="section-title">Everything your health<br />needs in one app</h2>
+            <h2 className="section-title">Everything your health needs in one app</h2>
           </div>
           <p className="section-subtitle">
             From booking to prescriptions to follow-ups — MediLink handles your entire healthcare journey
@@ -652,9 +629,6 @@ export default function Home() {
         <div className="services-grid">
           {SERVICES.map(s => (
             <div className="service-card" key={s.title} style={{ "--accent": s.color }}>
-              <div className="service-icon-wrap" style={{ background: s.bg }}>
-                {s.icon}
-              </div>
               <h3>{s.title}</h3>
               <p>{s.desc}</p>
               <a className="service-link" href="#" style={{ color: s.color }}>
@@ -696,7 +670,6 @@ export default function Home() {
               alt="Telemedicine consultation"
             />
             <div className="tele-badge">
-              <span className="tele-badge-icon">🟢</span>
               <div>
                 <div className="tele-badge-text">Live Consultation</div>
                 <div className="tele-badge-sub">Secure · HD Video · Encrypted</div>
@@ -705,19 +678,18 @@ export default function Home() {
           </div>
           <div>
             <span className="section-label">Telemedicine</span>
-            <h2 className="section-title">A specialist,<br />wherever you are</h2>
+            <h2 className="section-title">A specialist, wherever you are</h2>
             <p className="section-subtitle">
               Distance is no longer a barrier to world-class care. Connect with verified specialists
               across Sri Lanka via secure, HD video calls — from your home, office, or anywhere.
             </p>
             <div className="tele-features">
               {[
-                { icon: "🔒", t: "End-to-End Encrypted", d: "Every session is fully encrypted — your consultations remain private and HIPAA-compliant." },
-                { icon: "⚡", t: "Connect in Minutes", d: "Average wait time under 8 minutes. Emergency slots available 24/7." },
-                { icon: "📄", t: "Instant Digital Prescriptions", d: "Receive your prescription immediately after the session — ready for any partner pharmacy." },
+                { t: "End-to-End Encrypted", d: "Every session is fully encrypted — your consultations remain private and HIPAA-compliant." },
+                { t: "Connect in Minutes", d: "Average wait time under 8 minutes. Emergency slots available 24/7." },
+                { t: "Instant Digital Prescriptions", d: "Receive your prescription immediately after the session — ready for any partner pharmacy." },
               ].map(f => (
                 <div className="tele-feat" key={f.t}>
-                  <div className="tele-feat-icon">{f.icon}</div>
                   <div>
                     <h4>{f.t}</h4>
                     <p>{f.d}</p>
@@ -737,7 +709,6 @@ export default function Home() {
         <div className="ticker-track">
           {[...HOSPITALS, ...HOSPITALS].map((h, i) => (
             <div className="ticker-item" key={i}>
-              <span className="ticker-dot" />
               <span>{h.name}</span>
               <span style={{ opacity: 0.4, fontSize: 12 }}>· {h.city}</span>
             </div>
@@ -760,8 +731,7 @@ export default function Home() {
               style={{ borderColor: i === activeReview ? "rgba(14,165,233,0.35)" : undefined }}
             >
               <div className="review-stars"><StarRating count={r.rating} /></div>
-              <div className="review-quote">"</div>
-              <p className="review-text">{r.text}</p>
+              <div className="review-text">{r.text}</div>
               <div className="review-author">
                 <img className="review-avatar" src={r.avatar} alt={r.name} />
                 <div>
@@ -777,8 +747,8 @@ export default function Home() {
       {/* ── CTA ── */}
       <div className="cta-section">
         <div className="cta-bg" />
-        <span className="year-badge">✦ Since 2026 · Year of Excellence</span>
-        <h2>Your health journey<br />starts today</h2>
+        <span className="year-badge">Since 2026 · Year of Excellence</span>
+        <h2>Your health journey starts today</h2>
         <p>Join 2,000+ patients who've made MediLink their trusted health partner.</p>
         <div className="cta-actions">
           <button className="btn-primary" onClick={() => navigate('/login')}>Create Free Account →</button>
@@ -806,11 +776,11 @@ export default function Home() {
           </div>
         </div>
         <div className="footer-bottom">
-          <p>© 2026 MediLink Health Technologies. All rights reserved.</p>
+          <p> 2026 MediLink Health Technologies. All rights reserved.</p>
           <div className="footer-badges">
-            <span className="fbadge">🔒 HIPAA Compliant</span>
-            <span className="fbadge">🌐 ISO 27001</span>
-            <span className="fbadge">🇱🇰 Made in Sri Lanka</span>
+            <span className="fbadge">HIPAA Compliant</span>
+            <span className="fbadge">ISO 27001</span>
+            <span className="fbadge">Made in Sri Lanka</span>
           </div>
         </div>
       </footer>
