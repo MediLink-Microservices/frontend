@@ -591,19 +591,6 @@ const PatientsPage = () => {
                         )}
                       </div>
 
-                      {/* Quick Actions */}
-                      <div className="pt-4 border-t border-gray-200">
-                        <div className="grid grid-cols-2 gap-3">
-                          <button className="flex items-center justify-center space-x-2 px-4 py-2 bg-medilink-primary text-white rounded-lg hover:bg-medilink-secondary transition-colors">
-                            <Calendar className="w-4 h-4" />
-                            <span className="text-sm">Book Appointment</span>
-                          </button>
-                          <button className="flex items-center justify-center space-x-2 px-4 py-2 bg-medilink-success text-white rounded-lg hover:bg-green-600 transition-colors">
-                            <FileText className="w-4 h-4" />
-                            <span className="text-sm">Add Prescription</span>
-                          </button>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 ) : (

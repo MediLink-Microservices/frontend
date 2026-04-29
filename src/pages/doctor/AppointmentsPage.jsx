@@ -193,6 +193,48 @@ const AppointmentsPage = () => {
     }
   };
 
+  const getDoctorStatusColor = (status) => {
+    switch (status) {
+      case 'AWAITING': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'IN_PROGRESS': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'COMPLETED': return 'bg-green-100 text-green-800 border-green-200';
+      case 'CANCELLED_BY_DOCTOR': return 'bg-red-100 text-red-800 border-red-200';
+      case 'NO_SHOW': return 'bg-gray-100 text-gray-800 border-gray-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const updateDoctorStatus = async (appointmentId, newStatus) => {
+    try {
+      const response = await fetch(`http://localhost:8084/api/appointments/${appointmentId}/doctor-status?doctorStatus=${newStatus}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        // Update the appointment in the local state
+        setAppointments(prevAppointments => 
+          prevAppointments.map(apt => 
+            apt.id === appointmentId 
+              ? { ...apt, doctorStatus: newStatus }
+              : apt
+          )
+        );
+        
+        // Update selected appointment if it's the one being updated
+        if (selectedAppointment && selectedAppointment.id === appointmentId) {
+          setSelectedAppointment(prev => ({ ...prev, doctorStatus: newStatus }));
+        }
+      } else {
+        console.error('Failed to update doctor status');
+      }
+    } catch (error) {
+      console.error('Error updating doctor status:', error);
+    }
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
@@ -372,6 +414,17 @@ const AppointmentsPage = () => {
                             {getStatusIcon(appointment.status)}
                             <span>{appointment.status.replace('_', ' ')}</span>
                           </span>
+                          <select
+                            value={appointment.doctorStatus || 'AWAITING'}
+                            onChange={(e) => updateDoctorStatus(appointment.id, e.target.value)}
+                            className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium border cursor-pointer outline-none focus:ring-2 focus:ring-medilink-primary ${getDoctorStatusColor(appointment.doctorStatus || 'AWAITING')}`}
+                          >
+                            <option value="AWAITING">Awaiting</option>
+                            <option value="IN_PROGRESS">In Progress</option>
+                            <option value="COMPLETED">Completed</option>
+                            <option value="CANCELLED_BY_DOCTOR">Cancelled by Doctor</option>
+                            <option value="NO_SHOW">No Show</option>
+                          </select>
                           <button
                             onClick={() => setSelectedAppointment(selectedAppointment?.id === appointment.id ? null : appointment)}
                             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -484,6 +537,7 @@ const AppointmentsPage = () => {
                               </div>
                             </div>
                           </div>
+
 
                           {appointment.notes && (
                             <div className="mt-6">
