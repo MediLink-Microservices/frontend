@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/layout/Layout'
+import Home from './pages/Home'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import AdminRegisterPage from './pages/auth/AdminRegisterPage'
@@ -42,7 +43,7 @@ function App() {
         <Route path="/register/doctor" element={<DoctorRegisterPage />} />
 
         <Route path="/" element={<Layout />}>
-          <Route index element={<LoginPage />} />
+          <Route index element={<Home />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
 
