@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
     '/api/schedules': env.VITE_DOCTOR_PROXY_TARGET || 'http://localhost:8083',
     '/api/appointments': env.VITE_APPOINTMENT_PROXY_TARGET || 'http://localhost:8084',
     '/api/payments': env.VITE_PAYMENT_PROXY_TARGET || 'http://localhost:8085',
+    '/api/patient': env.VITE_PATIENT_PROXY_TARGET || 'http://localhost:8086',
     '/api/patients': env.VITE_PATIENT_PROXY_TARGET || 'http://localhost:8086',
     '/api/notifications': env.VITE_NOTIFICATION_PROXY_TARGET || 'http://localhost:8087',
     '/api/telemedicine': env.VITE_TELEMEDICINE_PROXY_TARGET || 'http://localhost:8088',

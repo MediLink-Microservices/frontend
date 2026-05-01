@@ -38,11 +38,11 @@ const createClient = (baseURL) => {
 }
 
 const authClient = createClient('/api/auth')
-const doctorClient = createClient('http://localhost:8083/api')
-const patientClient = createClient('http://localhost:8086/api')
-const appointmentClient = createClient('http://localhost:8084/api')
-const paymentClient = createClient('http://localhost:8085/api')
-const telemedicineClient = createClient('http://localhost:8088/api')
+const doctorClient = createClient('/api')
+const patientClient = createClient('/api')
+const appointmentClient = createClient('/api')
+const paymentClient = createClient('/api')
+const telemedicineClient = createClient('/api')
 
 export const authAPI = {
   login: (credentials) => authClient.post('/login', credentials),

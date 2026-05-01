@@ -12,7 +12,7 @@ const ViewHospitals = () => {
 
   const fetchHospitals = async () => {
     try {
-      const response = await fetch('http://localhost:8083/api/hospitals');
+      const response = await fetch('/api/hospitals');
       if (response.ok) {
         const data = await response.json();
         setHospitals(data);
@@ -29,7 +29,7 @@ const ViewHospitals = () => {
   const handleDelete = async (hospitalId) => {
     if (window.confirm('Are you sure you want to delete this hospital?')) {
       try {
-        const response = await fetch(`http://localhost:8083/api/hospitals/${hospitalId}`, {
+        const response = await fetch(`/api/hospitals/${hospitalId}`, {
           method: 'DELETE'
         });
         

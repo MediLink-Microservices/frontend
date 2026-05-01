@@ -62,7 +62,7 @@ const SchedulePage = () => {
       const parsedUser = getStoredUser();
       setUser(parsedUser);
 
-      const doctorsResponse = await fetch('http://localhost:8083/api/doctors');
+      const doctorsResponse = await fetch('/api/doctors');
       if (!doctorsResponse.ok) {
         throw new Error('Unable to load doctor profiles.');
       }
@@ -103,7 +103,7 @@ const SchedulePage = () => {
     }
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:8083/api/schedules/doctor/${resolvedDoctorId}`);
+      const response = await fetch(`/api/schedules/doctor/${resolvedDoctorId}`);
       if (response.ok) {
         const data = await response.json();
         setSchedules(data);
@@ -117,7 +117,7 @@ const SchedulePage = () => {
 
   const fetchHospitals = async () => {
     try {
-      const response = await fetch('http://localhost:8083/api/hospitals');
+      const response = await fetch('/api/hospitals');
       if (response.ok) {
         const data = await response.json();
         setHospitals(data);
@@ -131,8 +131,8 @@ const SchedulePage = () => {
     e.preventDefault();
     try {
       const url = editingSchedule 
-        ? `http://localhost:8083/api/schedules/${editingSchedule.scheduleId}`
-        : 'http://localhost:8083/api/schedules';
+        ? `/api/schedules/${editingSchedule.scheduleId}`
+        : '/api/schedules';
       
       const method = editingSchedule ? 'PUT' : 'POST';
       
@@ -159,7 +159,7 @@ const SchedulePage = () => {
     console.log('Attempting to delete schedule with ID:', scheduleId);
     if (window.confirm('Are you sure you want to delete this schedule?')) {
       try {
-        const response = await fetch(`http://localhost:8083/api/schedules/${scheduleId}`, {
+        const response = await fetch(`/api/schedules/${scheduleId}`, {
           method: 'DELETE',
         });
         if (response.ok) {

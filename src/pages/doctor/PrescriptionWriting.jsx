@@ -34,7 +34,7 @@ const PrescriptionWriting = () => {
     const fetchPatients = async () => {
         try {
             setLoading(true)
-            const response = await fetch('http://localhost:8086/api/patient')
+            const response = await fetch('/api/patient')
             if (response.ok) {
                 const data = await response.json()
                 setPatients(data)

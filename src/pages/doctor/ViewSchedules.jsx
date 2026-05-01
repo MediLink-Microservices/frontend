@@ -15,7 +15,7 @@ const ViewSchedules = () => {
 
   const fetchSchedules = async () => {
     try {
-      const response = await fetch('http://localhost:8083/api/schedules');
+      const response = await fetch('/api/schedules');
       if (response.ok) {
         const data = await response.json();
         setSchedules(data);
@@ -31,7 +31,7 @@ const ViewSchedules = () => {
 
   const fetchHospitals = async () => {
     try {
-      const response = await fetch('http://localhost:8083/api/hospitals');
+      const response = await fetch('/api/hospitals');
       if (response.ok) {
         const data = await response.json();
         setHospitals(data);
@@ -49,7 +49,7 @@ const ViewSchedules = () => {
     if (!editingSchedule) return;
 
     try {
-      const response = await fetch(`http://localhost:8083/api/schedules/${editingSchedule.scheduleId}`, {
+      const response = await fetch(`/api/schedules/${editingSchedule.scheduleId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -78,7 +78,7 @@ const ViewSchedules = () => {
   const handleDelete = async (scheduleId) => {
     if (window.confirm('Are you sure you want to delete this schedule?')) {
       try {
-        const response = await fetch(`http://localhost:8083/api/schedules/${scheduleId}`, {
+        const response = await fetch(`/api/schedules/${scheduleId}`, {
           method: 'DELETE'
         });
         

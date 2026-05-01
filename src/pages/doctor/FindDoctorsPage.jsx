@@ -53,8 +53,8 @@ const FindDoctorsPage = () => {
       
       // Fetch doctors and hospitals in parallel
       const [doctorsResponse, hospitalsResponse] = await Promise.all([
-        fetch('http://localhost:8083/api/doctors'),
-        fetch('http://localhost:8083/api/hospitals')
+        fetch('/api/doctors'),
+        fetch('/api/hospitals')
       ]);
 
       if (doctorsResponse.ok && hospitalsResponse.ok) {
