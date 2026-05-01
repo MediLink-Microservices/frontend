@@ -216,7 +216,7 @@ const BookAppointmentPage = () => {
       }
 
       try {
-        const response = await fetch(`http://localhost:8088/api/telemedicine/patient/${patientDetails.patientId.trim()}`);
+        const response = await fetch(`/api/telemedicine/patient/${patientDetails.patientId.trim()}`);
         if (!response.ok) {
           return;
         }
@@ -250,7 +250,7 @@ const BookAppointmentPage = () => {
 
   const fetchHospitals = async () => {
     try {
-      const response = await fetch('http://localhost:8083/api/hospitals');
+      const response = await fetch('/api/hospitals');
       if (response.ok) {
         const data = await response.json();
         setHospitals(data);
@@ -262,7 +262,7 @@ const BookAppointmentPage = () => {
 
   const fetchTotalDoctors = async () => {
     try {
-      const response = await fetch('http://localhost:8083/api/doctors');
+      const response = await fetch('/api/doctors');
       if (response.ok) {
         const data = await response.json();
         setTotalDoctors(Array.isArray(data) ? data.length : 0);
@@ -286,7 +286,7 @@ const BookAppointmentPage = () => {
   const fetchDoctorsBySpecialty = async (specialty) => {
     setLoadingDoctors(true);
     try {
-      const response = await fetch(`http://localhost:8083/api/doctors/search?specialty=${specialty}`);
+      const response = await fetch(`/api/doctors/search?specialty=${specialty}`);
       if (response.ok) {
         const data = await response.json();
         setDoctors(data);
@@ -309,7 +309,7 @@ const BookAppointmentPage = () => {
   const fetchDoctorSchedules = async (doctorId) => {
     setLoadingSchedules(true);
     try {
-      const response = await fetch(`http://localhost:8083/api/schedules/doctor/${doctorId}`);
+      const response = await fetch(`/api/schedules/doctor/${doctorId}`);
       if (response.ok) {
         const data = await response.json();
         setSchedules(data.filter(schedule => schedule.isAvailable));
@@ -329,7 +329,7 @@ const BookAppointmentPage = () => {
 
   const fetchDoctorAppointments = async (doctorId) => {
     try {
-      const response = await fetch(`http://localhost:8084/api/appointments/doctor/${doctorId}`);
+      const response = await fetch(`/api/appointments/doctor/${doctorId}`);
       if (response.ok) {
         const data = await response.json();
         setDoctorAppointments(data);
@@ -377,6 +377,13 @@ const BookAppointmentPage = () => {
     return (Number(hours) * 60) + Number(minutes);
   };
 
+  const formatLocalDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const minutesToTime = (totalMinutes) => {
     const safeMinutes = Math.max(0, totalMinutes);
     const hours = Math.floor(safeMinutes / 60) % 24;
@@ -384,7 +391,11 @@ const BookAppointmentPage = () => {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
   };
 
-  const getNextAvailableSlotDateTime = (schedule, scheduleDate) => {
+  const isTodayDate = (scheduleDate, referenceDate = new Date()) => (
+    scheduleDate === formatLocalDate(referenceDate)
+  );
+
+  const getNextAvailableSlotDateTime = (schedule, scheduleDate, referenceDate = new Date()) => {
     if (!schedule || !scheduleDate) return null;
 
     const activeAppointments = getActiveAppointmentsForDate(scheduleDate);
@@ -409,6 +420,10 @@ const BookAppointmentPage = () => {
       const slotMinutes = startMinutes + (slotIndex * slotDuration);
       if (slotMinutes >= endMinutes) {
         break;
+      }
+
+      if (isTodayDate(scheduleDate, referenceDate) && slotMinutes <= ((referenceDate.getHours() * 60) + referenceDate.getMinutes())) {
+        continue;
       }
 
       const slotTime = minutesToTime(slotMinutes);
@@ -443,20 +458,41 @@ const BookAppointmentPage = () => {
     return Math.max(0, availableSeats);
   };
 
-  const getScheduleDate = (currentDate, scheduleDay) => {
-    // Find the next occurrence of the schedule day
+  const getScheduleDate = (currentDate, scheduleDay, weekOffset = 0) => {
     const daysOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
     const currentDayIndex = currentDate.getDay();
     const scheduleDayIndex = daysOfWeek.indexOf(scheduleDay.toUpperCase());
-    
-    let daysUntilSchedule = scheduleDayIndex - currentDayIndex;
-    if (daysUntilSchedule <= 0) {
-      daysUntilSchedule += 7; // If the day has passed this week, go to next week
+
+    if (scheduleDayIndex === -1) {
+      return '';
     }
-    
+
+    let daysUntilSchedule = scheduleDayIndex - currentDayIndex;
+    if (daysUntilSchedule < 0) {
+      daysUntilSchedule += 7;
+    }
+
     const scheduleDate = new Date(currentDate);
-    scheduleDate.setDate(currentDate.getDate() + daysUntilSchedule);
-    return scheduleDate.toISOString().split('T')[0];
+    scheduleDate.setHours(0, 0, 0, 0);
+    scheduleDate.setDate(currentDate.getDate() + daysUntilSchedule + (weekOffset * 7));
+    return formatLocalDate(scheduleDate);
+  };
+
+  const resolveNextBookableSlot = (schedule, referenceDate = new Date()) => {
+    if (!schedule?.day) {
+      return { appointmentDate: '', appointmentDateTime: null };
+    }
+
+    for (let weekOffset = 0; weekOffset < 2; weekOffset += 1) {
+      const appointmentDate = getScheduleDate(referenceDate, schedule.day, weekOffset);
+      const appointmentDateTime = getNextAvailableSlotDateTime(schedule, appointmentDate, referenceDate);
+
+      if (appointmentDateTime) {
+        return { appointmentDate, appointmentDateTime };
+      }
+    }
+
+    return { appointmentDate: '', appointmentDateTime: null };
   };
 
   const getHospitalName = (hospitalId) => {
@@ -464,13 +500,17 @@ const BookAppointmentPage = () => {
     return hospital ? hospital.name : 'Unknown Hospital';
   };
 
-  const selectedScheduleDate = useMemo(() => {
+  const selectedScheduleSlot = useMemo(() => {
     if (!selectedSchedule) {
-      return '';
+      return { appointmentDate: '', appointmentDateTime: null };
     }
 
-    return getScheduleDate(new Date(), selectedSchedule.day);
-  }, [selectedSchedule]);
+    return resolveNextBookableSlot(selectedSchedule, new Date());
+  }, [doctorAppointments, selectedSchedule]);
+
+  const selectedScheduleDate = useMemo(() => {
+    return selectedScheduleSlot.appointmentDate;
+  }, [selectedScheduleSlot]);
 
   const projectedAppointmentNumber = useMemo(() => {
     if (!selectedScheduleDate) {
@@ -481,13 +521,12 @@ const BookAppointmentPage = () => {
   }, [doctorAppointments, selectedScheduleDate]);
 
   const projectedAppointmentTime = useMemo(() => {
-    if (!selectedSchedule || !selectedScheduleDate) {
+    if (!selectedScheduleSlot.appointmentDateTime) {
       return '';
     }
 
-    const nextSlotDateTime = getNextAvailableSlotDateTime(selectedSchedule, selectedScheduleDate);
-    return nextSlotDateTime ? nextSlotDateTime.split('T')[1]?.slice(0, 5) || '' : '';
-  }, [doctorAppointments, selectedSchedule, selectedScheduleDate]);
+    return selectedScheduleSlot.appointmentDateTime.split('T')[1]?.slice(0, 5) || '';
+  }, [selectedScheduleSlot]);
 
   const patientDisplayName = patientDetails.patientName || storedUser?.name || 'Patient';
   const hasLinkedPatient = Boolean(patientDetails.patientId);
@@ -561,7 +600,7 @@ const BookAppointmentPage = () => {
         notes: appointmentData.notes
       };
 
-      const response = await fetch('http://localhost:8088/api/telemedicine/create', {
+      const response = await fetch('/api/telemedicine/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -604,17 +643,14 @@ const BookAppointmentPage = () => {
     setTelemedicineError('');
     setTelemedicineSession(null);
     try {
-      // Create appointment date time properly (must be in the future)
-      const today = new Date();
-      const appointmentDate = getScheduleDate(today, selectedSchedule.day); // Get correct schedule date
-      const appointmentDateTime = getNextAvailableSlotDateTime(selectedSchedule, appointmentDate);
+      const { appointmentDate, appointmentDateTime } = resolveNextBookableSlot(selectedSchedule, new Date());
 
       // Calculate next appointment number
       const nextAppointmentNumber = getNextAppointmentNumber(appointmentDate);
       const doctorHospital = getHospitalName(selectedSchedule.hospitalId);
 
       if (!appointmentDateTime) {
-        setBookingError('This schedule has reached its patient limit for the selected day.');
+        setBookingError('No future slot is available for this schedule right now. Please try another schedule.');
         return;
       }
 
@@ -631,7 +667,7 @@ const BookAppointmentPage = () => {
         appointmentNumber: nextAppointmentNumber // Send calculated appointment number
       };
 
-      const response = await fetch('http://localhost:8084/api/appointments/book', {
+      const response = await fetch('/api/appointments/book', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1096,6 +1132,9 @@ const BookAppointmentPage = () => {
                 <h3 className="font-semibold text-gray-900">Schedule Details</h3>
                 <p className="text-gray-600">{selectedSchedule?.day}</p>
                 <p className="text-gray-600">{selectedSchedule?.startTime} - {selectedSchedule?.endTime}</p>
+                {selectedScheduleDate && (
+                  <p className="text-gray-600">Appointment date: {formatAppointmentDateTime(`${selectedScheduleDate}T00:00:00`)}</p>
+                )}
                 {projectedAppointmentTime && (
                   <p className="text-gray-600">Estimated slot: {projectedAppointmentTime}</p>
                 )}

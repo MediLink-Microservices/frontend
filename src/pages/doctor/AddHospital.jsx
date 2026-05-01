@@ -29,7 +29,7 @@ const AddHospital = () => {
 
     console.log(formData);
     try {
-      const response = await fetch('http://localhost:8083/api/hospitals', {
+      const response = await fetch('/api/hospitals', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

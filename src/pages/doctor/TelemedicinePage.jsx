@@ -54,7 +54,7 @@ const TelemedicinePage = () => {
       const parsedUser = getStoredUser();
       setUser(parsedUser);
 
-      const doctorsResponse = await fetch('http://localhost:8083/api/doctors');
+      const doctorsResponse = await fetch('/api/doctors');
       if (!doctorsResponse.ok) {
         throw new Error('Unable to load doctor profiles.');
       }
@@ -97,7 +97,7 @@ const TelemedicinePage = () => {
     try {
       setLoading(true);
       setLoadError('');
-      const response = await fetch(`http://localhost:8088/api/telemedicine/doctor/${resolvedDoctorId}`);
+      const response = await fetch(`/api/telemedicine/doctor/${resolvedDoctorId}`);
       if (response.ok) {
         const data = await response.json();
         setTelemedicineSessions(data);
@@ -105,7 +105,7 @@ const TelemedicinePage = () => {
         // Fetch patient details for each session
         const patientPromises = data.map(async (session) => {
           if (session.patientId && !patients[session.patientId]) {
-            const patientResponse = await fetch(`http://localhost:8086/api/patient/${session.patientId}`);
+            const patientResponse = await fetch(`/api/patient/${session.patientId}`);
             if (patientResponse.ok) {
               const patientData = await patientResponse.json();
               return { [session.patientId]: patientData };

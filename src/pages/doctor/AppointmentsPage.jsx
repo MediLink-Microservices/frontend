@@ -54,7 +54,7 @@ const AppointmentsPage = () => {
       const parsedUser = getStoredUser();
       setUser(parsedUser);
 
-      const doctorsResponse = await fetch('http://localhost:8083/api/doctors');
+      const doctorsResponse = await fetch('/api/doctors');
       if (!doctorsResponse.ok) {
         throw new Error('Unable to load doctor profiles.');
       }
@@ -89,7 +89,7 @@ const AppointmentsPage = () => {
 
   const fetchAppointments = async (resolvedDoctorId) => {
     try {
-      const response = await fetch(`http://localhost:8084/api/appointments/doctor/${resolvedDoctorId}`);
+      const response = await fetch(`/api/appointments/doctor/${resolvedDoctorId}`);
       if (response.ok) {
         const data = await response.json();
         setAppointments(data);
@@ -97,7 +97,7 @@ const AppointmentsPage = () => {
         // Fetch patient details for each appointment
         const patientPromises = data.map(async (appointment) => {
           if (appointment.patientId && !patients[appointment.patientId]) {
-            const patientResponse = await fetch(`http://localhost:8086/api/patient/${appointment.patientId}`);
+            const patientResponse = await fetch(`/api/patient/${appointment.patientId}`);
             if (patientResponse.ok) {
               const patientData = await patientResponse.json();
               return { [appointment.patientId]: patientData };

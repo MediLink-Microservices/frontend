@@ -57,7 +57,7 @@ const DoctorProfilePage = () => {
       console.log('Stored user data:', storedUser);
       
       // First get all doctors to find the current doctor's profile
-      const doctorsResponse = await fetch('http://localhost:8083/api/doctors');
+      const doctorsResponse = await fetch('/api/doctors');
       if (doctorsResponse.ok) {
         const doctors = await doctorsResponse.json();
         console.log('Available doctors:', doctors);
@@ -158,7 +158,7 @@ const DoctorProfilePage = () => {
       console.log('Updating doctor with ID:', doctorId);
       console.log('Form data:', formData);
       
-      const response = await fetch(`http://localhost:8083/api/doctors/${doctorId}`, {
+      const response = await fetch(`/api/doctors/${doctorId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

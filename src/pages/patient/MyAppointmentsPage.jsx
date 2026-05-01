@@ -71,7 +71,7 @@ const MyAppointmentsPage = () => {
 
   const fetchTelemedicineSessions = async (patientIdValue) => {
     try {
-      const response = await fetch(`http://localhost:8088/api/telemedicine/patient/${patientIdValue}`);
+      const response = await fetch(`/api/telemedicine/patient/${patientIdValue}`);
       if (response.ok) {
         const sessions = await response.json();
         // Map sessions by appointmentDateTime for quick lookup

@@ -28,7 +28,7 @@ const AddPrescription = () => {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8083/api/prescriptions', {
+      const response = await fetch('/api/prescriptions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

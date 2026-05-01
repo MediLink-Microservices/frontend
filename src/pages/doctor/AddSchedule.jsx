@@ -23,7 +23,7 @@ const AddSchedule = () => {
 
   const fetchHospitals = async () => {
     try {
-      const response = await fetch('http://localhost:8083/api/hospitals');
+      const response = await fetch('/api/hospitals');
       if (response.ok) {
         const data = await response.json();
         setHospitals(data);
@@ -47,7 +47,7 @@ const AddSchedule = () => {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8083/api/schedules', {
+      const response = await fetch('/api/schedules', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

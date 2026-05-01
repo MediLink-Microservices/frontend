@@ -12,7 +12,7 @@ const ViewDoctors = () => {
 
   const fetchDoctors = async () => {
     try {
-      const response = await fetch('http://localhost:8083/api/doctors');
+      const response = await fetch('/api/doctors');
       if (response.ok) {
         const data = await response.json();
         setDoctors(data);
@@ -29,7 +29,7 @@ const ViewDoctors = () => {
   const handleDelete = async (doctorId) => {
     if (window.confirm('Are you sure you want to delete this doctor?')) {
       try {
-        const response = await fetch(`http://localhost:8083/api/doctors/${doctorId}`, {
+        const response = await fetch(`/api/doctors/${doctorId}`, {
           method: 'DELETE'
         });
         
@@ -47,7 +47,7 @@ const ViewDoctors = () => {
 
   const handleStatusUpdate = async (doctorId, status) => {
     try {
-      const response = await fetch(`http://localhost:8083/api/doctors/${doctorId}/status?status=${status}`, {
+      const response = await fetch(`/api/doctors/${doctorId}/status?status=${status}`, {
         method: 'PUT'
       });
       

@@ -75,7 +75,7 @@ const PrescriptionsPage = () => {
         return patientDetails[patientId];
       }
       
-      const response = await fetch(`http://localhost:8086/api/patient/${patientId}`);
+      const response = await fetch(`/api/patient/${patientId}`);
       if (response.ok) {
         const patientData = await response.json();
         setPatientDetails(prev => ({ ...prev, [patientId]: patientData }));
@@ -90,7 +90,7 @@ const PrescriptionsPage = () => {
   const fetchPrescriptions = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:8083/api/prescriptions/doctor/69dda11899183b33e3e63c9f`);
+      const response = await fetch(`/api/prescriptions/doctor/69dda11899183b33e3e63c9f`);
       if (response.ok) {
         const data = await response.json();
         setPrescriptions(data);
@@ -122,7 +122,7 @@ const PrescriptionsPage = () => {
   const fetchAllPatients = async () => {
     try {
       setPatientLoading(true);
-      const response = await fetch('http://localhost:8086/api/patient');
+      const response = await fetch('/api/patient');
       if (response.ok) {
         const data = await response.json();
         setPatients(data);
@@ -306,7 +306,7 @@ ${prescription.notes}
         notes: prescriptionForm.notes
       };
 
-      const response = await fetch('http://localhost:8083/api/prescriptions', {
+      const response = await fetch('/api/prescriptions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -371,7 +371,7 @@ ${prescription.notes}
         notes: prescriptionForm.notes
       };
 
-      const response = await fetch(`http://localhost:8083/api/prescriptions/${editingPrescription.prescriptionId}`, {
+      const response = await fetch(`/api/prescriptions/${editingPrescription.prescriptionId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -399,7 +399,7 @@ ${prescription.notes}
     if (!window.confirm('Are you sure you want to delete this prescription?')) return;
     
     try {
-      const response = await fetch(`http://localhost:8083/api/prescriptions/${prescriptionId}`, {
+      const response = await fetch(`/api/prescriptions/${prescriptionId}`, {
         method: 'DELETE',
       });
 

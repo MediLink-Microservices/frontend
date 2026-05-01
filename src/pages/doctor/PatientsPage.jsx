@@ -49,7 +49,7 @@ const PatientsPage = () => {
   const fetchPatients = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8086/api/patient');
+      const response = await fetch('/api/patient');
       if (response.ok) {
         const data = await response.json();
         setPatients(data);
@@ -63,7 +63,7 @@ const PatientsPage = () => {
 
   const fetchPatientDetails = async (patientId) => {
     try {
-      const response = await fetch(`http://localhost:8086/api/patient/${patientId}`);
+      const response = await fetch(`/api/patient/${patientId}`);
       if (response.ok) {
         const patientData = await response.json();
         setSelectedPatient(patientData);
@@ -77,7 +77,7 @@ const PatientsPage = () => {
 
   const fetchPatientByNIC = async (nic) => {
     try {
-      const response = await fetch(`http://localhost:8086/api/patient/nic/${nic}`);
+      const response = await fetch(`/api/patient/nic/${nic}`);
       if (response.ok) {
         const patientData = await response.json();
         setSelectedPatient(patientData);
