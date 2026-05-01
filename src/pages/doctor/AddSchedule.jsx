@@ -69,7 +69,31 @@ const AddSchedule = () => {
     }
   };
 
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  // Get available days (excluding past days)
+  const getAvailableDays = () => {
+    const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const today = new Date();
+    const currentDayIndex = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const currentTime = today.getHours() * 60 + today.getMinutes();
+    
+    // Convert to our day format (Monday = 0, Sunday = 6)
+    const currentDayFormatted = currentDayIndex === 0 ? 6 : currentDayIndex - 1;
+    
+    return allDays.filter((day, index) => {
+      // Allow all future days in the current week
+      if (index > currentDayFormatted) {
+        return true;
+      }
+      // Allow current day if it's not too late (before 6 PM as a reasonable cutoff)
+      if (index === currentDayFormatted && currentTime < 18 * 60) {
+        return true;
+      }
+      // Allow all days for next week (we'll handle this with a more sophisticated approach if needed)
+      return false;
+    });
+  };
+
+  const days = getAvailableDays();
   const consultationTypes = ['IN_PERSON', 'ONLINE', 'BOTH', 'TELEMEDICINE'];
 
   return (
@@ -77,6 +101,12 @@ const AddSchedule = () => {
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Add Doctor Schedule</h2>
+          
+          {days.length === 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md text-sm mb-6">
+              <strong>Note:</strong> No available days for scheduling this week. You can schedule for next week starting tomorrow, or contact support if you need to make special arrangements.
+            </div>
+          )}
           
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-6">
@@ -132,14 +162,23 @@ const AddSchedule = () => {
                 id="day"
                 name="day"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                 value={formData.day}
                 onChange={handleChange}
+                disabled={days.length === 0}
               >
+                <option value="">
+                  {days.length === 0 ? 'No available days this week' : 'Select a day...'}
+                </option>
                 {days.map(day => (
                   <option key={day} value={day}>{day}</option>
                 ))}
               </select>
+              {days.length === 0 && (
+                <p className="mt-1 text-sm text-gray-500">
+                  Scheduling is closed for the remainder of this week. Please check back tomorrow for next week's availability.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -236,7 +275,7 @@ const AddSchedule = () => {
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || days.length === 0}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
                 {loading ? 'Adding Schedule...' : 'Add Schedule'}

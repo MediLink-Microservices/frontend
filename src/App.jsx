@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/layout/Layout'
+import Home from './pages/Home'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import AdminRegisterPage from './pages/auth/AdminRegisterPage'
@@ -8,6 +9,7 @@ import DoctorRegisterPage from './pages/auth/DoctorRegisterPage'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import DoctorDashboard from './pages/doctor/DoctorDashboard'
 import PatientDashboard from './pages/patient/PatientDashboard'
+import PatientPrescriptionsPage from './pages/patient/PatientPrescriptionsPage'
 import MyAppointmentsPage from './pages/patient/MyAppointmentsPage'
 import PatientProfilePage from './pages/patient/PatientProfilePage'
 import MedicalReportsPage from './pages/patient/MedicalReportsPage'
@@ -41,7 +43,7 @@ function App() {
         <Route path="/register/doctor" element={<DoctorRegisterPage />} />
 
         <Route path="/" element={<Layout />}>
-          <Route index element={<LoginPage />} />
+          <Route index element={<Home />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
 
@@ -52,7 +54,8 @@ function App() {
           <Route path="patient/profile" element={<ProtectedRoute allowedRole="PATIENT"><PatientProfilePage /></ProtectedRoute>} />
           <Route path="patient/medical-reports" element={<ProtectedRoute allowedRole="PATIENT"><MedicalReportsPage /></ProtectedRoute>} />
           <Route path="patient/payment" element={<ProtectedRoute allowedRole="PATIENT"><PaymentCheckoutPage /></ProtectedRoute>} />
-
+          <Route path="patient/prescriptions" element={<ProtectedRoute allowedRole="PATIENT"><PatientPrescriptionsPage /></ProtectedRoute>} />
+          
           <Route path="doctor" element={<Navigate replace to="/doctor/dashboard" />} />
           <Route path="doctor/dashboard" element={<ProtectedRoute allowedRole="DOCTOR"><DoctorDashboard /></ProtectedRoute>} />
           <Route path="doctor/appointments" element={<ProtectedRoute allowedRole="DOCTOR"><AppointmentsPage /></ProtectedRoute>} />

@@ -33,7 +33,8 @@ const AppointmentsPage = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [dateFilter, setDateFilter] = useState('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
 
@@ -45,7 +46,7 @@ const AppointmentsPage = () => {
 
   useEffect(() => {
     filterAppointments();
-  }, [appointments, searchTerm, statusFilter, dateFilter]);
+  }, [appointments, searchTerm, statusFilter, startDate, endDate]);
 
   const initializeDoctorSession = async () => {
     try {
@@ -145,25 +146,25 @@ const AppointmentsPage = () => {
       filtered = filtered.filter(apt => apt.status === statusFilter);
     }
 
-    // Date filter
-    if (dateFilter !== 'ALL') {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
+    // Date range filter
+    if (startDate || endDate) {
       filtered = filtered.filter(apt => {
         const aptDate = new Date(apt.appointmentDateTime);
         aptDate.setHours(0, 0, 0, 0);
         
-        switch (dateFilter) {
-          case 'TODAY':
-            return aptDate.getTime() === today.getTime();
-          case 'UPCOMING':
-            return aptDate >= today;
-          case 'PAST':
-            return aptDate < today;
-          default:
-            return true;
+        if (startDate) {
+          const start = new Date(startDate);
+          start.setHours(0, 0, 0, 0);
+          if (aptDate < start) return false;
         }
+        
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          if (aptDate > end) return false;
+        }
+        
+        return true;
       });
     }
 
@@ -190,6 +191,48 @@ const AppointmentsPage = () => {
       case 'CANCELLED': return <XCircle className="w-4 h-4" />;
       case 'COMPLETED': return <CheckCircle className="w-4 h-4" />;
       default: return <Clock className="w-4 h-4" />;
+    }
+  };
+
+  const getDoctorStatusColor = (status) => {
+    switch (status) {
+      case 'AWAITING': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'IN_PROGRESS': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'COMPLETED': return 'bg-green-100 text-green-800 border-green-200';
+      case 'CANCELLED_BY_DOCTOR': return 'bg-red-100 text-red-800 border-red-200';
+      case 'NO_SHOW': return 'bg-gray-100 text-gray-800 border-gray-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const updateDoctorStatus = async (appointmentId, newStatus) => {
+    try {
+      const response = await fetch(`http://localhost:8084/api/appointments/${appointmentId}/doctor-status?doctorStatus=${newStatus}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        // Update the appointment in the local state
+        setAppointments(prevAppointments => 
+          prevAppointments.map(apt => 
+            apt.id === appointmentId 
+              ? { ...apt, doctorStatus: newStatus }
+              : apt
+          )
+        );
+        
+        // Update selected appointment if it's the one being updated
+        if (selectedAppointment && selectedAppointment.id === appointmentId) {
+          setSelectedAppointment(prev => ({ ...prev, doctorStatus: newStatus }));
+        }
+      } else {
+        console.error('Failed to update doctor status');
+      }
+    } catch (error) {
+      console.error('Error updating doctor status:', error);
     }
   };
 
@@ -278,7 +321,7 @@ const AppointmentsPage = () => {
 
               {/* Filter Options */}
               {showFilters && (
-                <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                     <select
@@ -295,17 +338,23 @@ const AppointmentsPage = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                    <select
-                      value={dateFilter}
-                      onChange={(e) => setDateFilter(e.target.value)}
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medilink-primary focus:border-transparent outline-none"
-                    >
-                      <option value="ALL">All Dates</option>
-                      <option value="TODAY">Today</option>
-                      <option value="UPCOMING">Upcoming</option>
-                      <option value="PAST">Past</option>
-                    </select>
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medilink-primary focus:border-transparent outline-none"
+                    />
                   </div>
 
                   <div className="flex items-end">
@@ -313,7 +362,8 @@ const AppointmentsPage = () => {
                       onClick={() => {
                         setSearchTerm('');
                         setStatusFilter('ALL');
-                        setDateFilter('ALL');
+                        setStartDate('');
+                        setEndDate('');
                       }}
                       className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                     >
@@ -372,6 +422,17 @@ const AppointmentsPage = () => {
                             {getStatusIcon(appointment.status)}
                             <span>{appointment.status.replace('_', ' ')}</span>
                           </span>
+                          <select
+                            value={appointment.doctorStatus || 'AWAITING'}
+                            onChange={(e) => updateDoctorStatus(appointment.id, e.target.value)}
+                            className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium border cursor-pointer outline-none focus:ring-2 focus:ring-medilink-primary ${getDoctorStatusColor(appointment.doctorStatus || 'AWAITING')}`}
+                          >
+                            <option value="AWAITING">Awaiting</option>
+                            <option value="IN_PROGRESS">In Progress</option>
+                            <option value="COMPLETED">Completed</option>
+                            <option value="CANCELLED_BY_DOCTOR">Cancelled by Doctor</option>
+                            <option value="NO_SHOW">No Show</option>
+                          </select>
                           <button
                             onClick={() => setSelectedAppointment(selectedAppointment?.id === appointment.id ? null : appointment)}
                             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -484,6 +545,7 @@ const AppointmentsPage = () => {
                               </div>
                             </div>
                           </div>
+
 
                           {appointment.notes && (
                             <div className="mt-6">

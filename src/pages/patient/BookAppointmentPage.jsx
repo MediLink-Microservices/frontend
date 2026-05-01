@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom'; // added for navigation
 import {
   ArrowRight,
   BadgeCheck,
@@ -14,7 +15,8 @@ import {
   Stethoscope,
   UserRound,
   Wallet,
-  XCircle
+  XCircle,
+  FileText          // added icon for prescriptions link
 } from 'lucide-react';
 import PatientPortalTabs from '../../components/patient/PatientPortalTabs';
 import { patientAPI, paymentAPI } from '../../services/api';
@@ -816,15 +818,26 @@ const BookAppointmentPage = () => {
                 <p className="text-xs uppercase tracking-[0.2em] text-white/70">Specialties</p>
                 <p className="mt-2 text-2xl font-bold">{specialties.length}</p>
               </div>
-                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/70">Doctors</p>
-                  <p className="mt-2 text-2xl font-bold">{totalDoctors || '-'}</p>
-                </div>
-                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
-                  <p className="text-xs uppercase tracking-[0.2em] text-white/70">Next Appt</p>
-                  <p className="mt-2 text-lg font-bold">{upcomingAppointmentDate || '-'}</p>
-                </div>
+              <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/70">Doctors</p>
+                <p className="mt-2 text-2xl font-bold">{totalDoctors || '-'}</p>
+              </div>
+              <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/70">Next Appt</p>
+                <p className="mt-2 text-lg font-bold">{upcomingAppointmentDate || '-'}</p>
+              </div>
             </div>
+          </div>
+          {/* --- NEW LINK TO PRESCRIPTIONS PAGE --- */}
+          <div className="mt-6 flex justify-end">
+            <Link
+              to="/patient/prescriptions"
+              className="inline-flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/30"
+            >
+              <FileText className="h-4 w-4" />
+              View My Prescriptions
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         </div>
 
@@ -918,6 +931,16 @@ const BookAppointmentPage = () => {
                   {patientDisplayName}
                 </div>
                 <p className="mt-1 text-xs text-sky-600">Patient ID: {patientDetails.patientId || 'Not linked'}</p>
+                {/* Optional: add prescriptions link inside the patient card as well */}
+                {hasLinkedPatient && (
+                  <Link
+                    to="/patient/prescriptions"
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-medilink-primary hover:underline"
+                  >
+                    <FileText className="h-3 w-3" />
+                    View my prescriptions
+                  </Link>
+                )}
               </div>
             </div>
             {formError && (
